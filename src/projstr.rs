@@ -1,82 +1,126 @@
 //!
 //! Output to projstring
 //!
+use crate::builder::Node;
+use crate::errors::{Error, Result};
+use crate::methods::{find_method_mapping, MethodMapping};
+use crate::model::*;
 
-/*
-fn sanitize(&mut self) -> Result<()> {
-    self.fix_datum_code();
+use std::borrow::Cow;
+use std::fmt::{self, Write};
 
-    if self.datum == "wgs84" && self.proj_name == "Mercator_Auxiliary_Sphere" {
-        self.sphere = true;
-    }
-
-    Ok(())
+#[derive(Default)]
+pub struct ProjStringFormatter<T: Write> {
+    w: T
 }
 
-fn fix_datum_code(&mut self) {
-    if self.datum.starts_with("d_") {
-        self.datum = self.datum[..2].into();
+impl<T: Write> ProjStringFormatter<T> {
+    pub fn new(w: T) -> Self {
+        Self { w }
     }
 
-    match self.datum.as_str() {
-        "new_zealand_geodetic_datum_1949" | "new_zealand_1949" => self.datum = "nzgd49".into(),
-        "wgs_1984" | "world_geodetic_system_1984" => self.datum = "wgs84".into(),
-        "ch1903+" => self.datum = "ch1903".into(),
-        code if code.ends_with("_ferro") => self.datum.truncate(code.len() - 6),
-        code if code.ends_with("_jakarta") => self.datum.truncate(code.len() - 8),
-        code if code.contains("belge") => self.datum = "rnb72".into(),
-        code if code.contains("osgb_1936") => self.datum = "osgb36".into(),
-        code if code.contains("osni_1952") => self.datum = "osni52".into(),
-        code if code.contains("tm65") || code.contains("geodetic_datum_of_1965") => {
-            self.datum = "ire65".into()
-        }
-        code if code.contains("israel") => self.datum = "isr93".into(),
-        _ => (),
-    }
-}
-
-fn datum(&mut self, attrs: &[Attr]) -> Result<()> {
-    if let Some(Attr::Quoted(name)) = attrs.get(0) {
-        self.datum = name.to_string();
-    }
-
-    for a in attrs {
-        match a {
-            Attr::Keyword(k, attrs) => match Key::from(*k) {
-                Key::SPHEROID => {
-                    if let Some(Attr::Quoted(name)) = attrs.get(0) {
-                        self.ellps = name
-                            .to_lowercase()
-                            .replace("_19", "")
-                            .replace("clarke_18", "clrk");
-                        if self.ellps.starts_with("international") {
-                            self.ellps = "intl".into();
-                        }
-                    }
-                    self.a = attrs.get(2).map(expect_number).transpose()?;
-                    self.rf = attrs.get(2).map(expect_number).transpose()?;
-                }
-                Key::TOWGS84 => {
-                    if attrs.len() != 3 || attrs.len() != 7 {
-                        return Err(Error::WktError(
-                            "Expecting 3 or 7 TOWGS84 parameters".into(),
-                        ));
-                    }
-
-                    self.to_wgs84 = attrs
-                        .iter()
-                        .map(|a| match a {
-                            Attr::Number(n) => parse_f64(n),
-                            _ => Err(Error::WktError("Expecting numbers in TOWGS84".into())),
-                        })
-                        .collect::<Result<Vec<f64>>>()?;
-                }
-                _ => (),
+    pub fn format(&mut self, node: &Node) -> Result<()> {
+        match node {
+            Node::GEOGCS(cs) => self.from_geogcs(cs),
+            Node::PROJCS(cs) => self.from_projcs(cs),
+            Node::COMPOUNDCRS(crs) => match &crs.h_crs {
+                Horizontalcrs::Projcs(cs) => self.from_projcs(cs),
+                Horizontalcrs::Geogcs(cs) => self.from_geogcs(cs),
+                _ => Err(Error::WktError(format!(
+                    "Cannot create proj string from {node:?}"
+                ))),
             },
-            _ => (),
+            _ => Err(Error::WktError(format!(
+                "Cannot create projstring from {node:?}"
+            ))),
         }
     }
 
-    Ok(())
+    fn from_geogcs(&mut self, geogcs: &Geogcs) -> Result<()> {
+        self.w.write_str("+proj=longlat")?;
+        self.add_datum(&geogcs.datum)
+    }
+
+    fn add_datum(&mut self, datum: &Datum) -> Result<()> {
+        self.add_ellipsoid(&datum.ellipsoid)?;
+        if datum.to_wgs84.is_empty() {
+            // Assume WGS84 or GRS80 compatible
+            self.w.write_str(" +towgs84=0,0,0,0,0,0,0")?;
+        } else {
+            self.w.write_str(" +towgs84=")?;
+            datum.to_wgs84.iter().try_fold("", |sep, n| {
+                write!(self.w, "{sep}{n}")
+                    .map_err(Error::from)
+                    .and(Ok(","))
+            })?;
+        }
+        Ok(())
+    }
+
+    // Since we do not use database, output ellipsoid parameters
+    // and get rid of ellipsoid name and authority
+    fn add_ellipsoid(&mut self, ellps: &Ellipsoid) -> Result<()> {
+        // TODO Convert to meter if unit are specified
+        let a = ellps.a;
+        let rf = ellps.rf;
+        write!(self.w, " +a={a} +rf={rf}")?;
+        Ok(())
+    }
+
+    fn from_projcs(&mut self, projcs: &Projcs) -> Result<()> {
+        // Check the projection
+        if let Some(mapping) = find_method_mapping(&projcs.projection.method) {
+            write!(self.w, "+proj={}", mapping.proj_name())?;
+            self.add_parameters(&projcs.projection.parameters, mapping)?;
+            self.add_datum(&projcs.geogcs.datum)?;
+            let proj_aux = mapping.proj_aux();
+            if !proj_aux.is_empty() {
+                write!(self.w, " {proj_aux}")?;
+            }
+            Ok(())
+        } else {
+            Err(Error::WktError(format!(
+                "No projection mapping found for {:?}",
+                projcs.projection.method
+            )))
+        }
+    }
+
+    fn add_parameters(&mut self, params: &[Parameter], mapping: &MethodMapping) -> Result<()> {
+        params.iter().try_for_each(|p| {
+            if let Some(pp) = mapping.find_proj_param(p) {
+                // TODO convert to correct units
+                write!(self.w, " +{}={}", pp.proj_name, p.value)
+            } else {
+                Ok(())
+            }
+        })?;
+        Ok(())
+    }
 }
-*/
+
+// ==============================
+//  Tests
+// ==============================
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tests::{ setup, fixtures };
+    use crate::parser::parse;
+    use crate::builder::Builder;
+
+    fn to_projstring(i: &str) -> Result<String> {
+        let mut buf = String::new();
+        Builder::new().parse(i)
+            .and_then(|node| ProjStringFormatter::new(&mut buf).format(&node))
+            .and(Ok(buf))
+    }
+
+    #[test]
+    fn convert_projcs_nad83() {
+        setup();
+        let wkt = to_projstring(fixtures::WKT_PROJCS_NAD83).unwrap();
+        assert_eq!(wkt, "foobar");
+    }
+}
+ 

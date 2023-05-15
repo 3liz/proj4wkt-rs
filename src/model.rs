@@ -3,45 +3,49 @@
 //!
 
 #[derive(Debug, PartialEq)]
-pub struct Projcs<'a> {
+pub struct Geogcs<'a> {
     pub name: &'a str,
-    pub geogcs: Geogcs<'a>,
-    pub projection: Projection<'a>,
+    pub datum: Datum<'a>,
+    pub unit: Option<Unit<'a>>,
 }
 
 #[derive(Debug, PartialEq)]
 pub struct Datum<'a> {
     pub name: &'a str,
-    pub ellps: Option<Spheroid<'a>>,
-    pub to_wgs84: Vec<f64>,
+    pub ellipsoid: Ellipsoid<'a>,
+    pub to_wgs84: Vec<&'a str>,
 }
 
 #[derive(Debug, PartialEq)]
-pub struct Geogcs<'a> {
+pub struct Ellipsoid<'a> {
     pub name: &'a str,
-    pub datum: Option<Datum<'a>>,
+    pub a: &'a str,
+    pub rf: &'a str,
+    pub unit: Option<Unit<'a>>,
 }
 
 #[derive(Debug, PartialEq)]
-pub struct Parameter<'a> {
+pub struct Projcs<'a> {
     pub name: &'a str,
-    pub value: f64,
+    pub geogcs: Geogcs<'a>,
+    pub projection: Projection<'a>,
     pub unit: Option<Unit<'a>>,
 }
 
 #[derive(Debug, PartialEq)]
 pub struct Projection<'a> {
     pub name: &'a str,
-    pub method: Option<Method<'a>>,
+    pub method: Method<'a>,
     pub parameters: Vec<Parameter<'a>>,
-    pub unit: Option<Unit<'a>>,
+    pub authority: Option<Authority<'a>>,
 }
 
 #[derive(Debug, PartialEq)]
-pub struct Spheroid<'a> {
+pub struct Parameter<'a> {
     pub name: &'a str,
-    pub a: Option<f64>,
-    pub rf: Option<f64>,
+    pub value: &'a str,
+    pub unit: Option<Unit<'a>>,
+    pub authority: Option<Authority<'a>>,
 }
 
 // WKT 2015/2019
@@ -59,8 +63,8 @@ pub struct Authority<'a> {
 
 #[derive(Debug, PartialEq)]
 pub enum UnitType {
-    Angle,
-    Length,
+    Angular,
+    Linear,
     Scale,
     Unknown,
 }
@@ -68,6 +72,26 @@ pub enum UnitType {
 #[derive(Debug, PartialEq)]
 pub struct Unit<'a> {
     pub name: &'a str,
-    pub factor: f64,
+    pub factor: &'a str,
     pub unit_type: UnitType,
+}
+// see https://docs.ogc.org/is/18-010r7/18-010r7.html#125
+#[derive(Debug, PartialEq)]
+#[non_exhaustive]
+pub enum Horizontalcrs<'a> {
+    Projcs(Projcs<'a>),
+    Geogcs(Geogcs<'a>),
+}
+
+// TODO
+#[derive(Debug, PartialEq)]
+pub struct Verticalcrs<'a> {
+    pub name: &'a str,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Compoundcrs<'a> {
+    pub name: &'a str,
+    pub h_crs: Horizontalcrs<'a>,
+    pub v_crs: Verticalcrs<'a>,
 }

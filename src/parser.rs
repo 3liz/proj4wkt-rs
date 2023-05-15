@@ -15,6 +15,8 @@ use nom::{
 use crate::errors::{Error, Result};
 use crate::log;
 
+use std::fmt::Debug;
+
 /// Literal attribute
 #[derive(Debug, PartialEq)]
 pub enum Attribute<'a, T> {
@@ -33,7 +35,7 @@ impl<'a, T> Attribute<'a, T> {
 }
 
 pub trait Processor<'a> {
-    type Err;
+    type Err: Debug;
     type Output;
 
     fn process<I>(&self, key: &'a str, depth: usize, attrs: I) -> Result<Self::Output, Self::Err>
@@ -82,7 +84,7 @@ fn keyword(i: &str) -> IResult<&str, &str> {
     ))(i)
 }
 
-fn log_failure<E, T>(_err: E) -> IResult<&'static str, T> {
+fn log_failure<E: Debug, T>(_err: E) -> IResult<&'static str, T> {
     log::error!("Wkt failure {_err:?}");
     cut(fail)("")
 }
@@ -97,7 +99,7 @@ where
             match cut(trim_left(char(']')))(rest) {
                 Ok((rest, _)) => Ok((rest, node)),
                 Err(err) => {
-                    log::error!("Missing closing delimiter for {kw}");
+                    log::error!("Missing closing delimiter for {key}");
                     Err(err)
                 }
             }

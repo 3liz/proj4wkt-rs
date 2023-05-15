@@ -4,12 +4,14 @@
 //! Convert WKT CRS to proj string
 //!
 mod builder;
+mod consts;
 mod errors;
+mod methods;
 mod model;
+mod params;
 mod parse;
 mod parser;
-
-//pub use builder::Builder;
+mod projstr;
 
 #[cfg(target_arch = "wasm32")]
 #[global_allocator]

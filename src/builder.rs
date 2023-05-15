@@ -15,21 +15,21 @@ use crate::parser::{parse, Attribute, Processor};
 #[allow(non_camel_case_types)]
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Copy, Clone, PartialEq)]
-pub enum Key {
+enum Key {
     GEOGCS,
     GEOCCS,
     PROJCS,
     CONVERSION,
     METHOD,
-    VERT_CS,
+    VERTICALCRS,
     LOCAL_CS,
     TIMECRS,
-    COMPD_CS,
+    COMPOUNDCRS,
     FITTED_CS,
     DATUM,
     VERT_DATUM,
     LOCAL_DATUM,
-    SPHEROID,
+    ELLIPSOID,
     PRIMEM,
     PROJECTION,
     PARAMETER,
@@ -54,7 +54,7 @@ impl From<&str> for Key {
             // Datum - geodetic reference frame
             "DATUM" | "GEODETICDATUM" | "TRF" => Self::DATUM,
             // Ellipsoid
-            "ELLIPSOID" | "SPHEROID" => Self::SPHEROID,
+            "ELLIPSOID" | "SPHEROID" => Self::ELLIPSOID,
             // Prime meridian
             "PRIMEM" | "PRIMEMERIDIAN" => Self::PRIMEM,
             // Map projection method
@@ -67,12 +67,12 @@ impl From<&str> for Key {
             "AUTHORITY" | "ID" => Self::AUTHORITY,
             // To wgs84 factors
             "TOWGS84" => Self::TOWGS84,
+            "COMPD_CS" | "COMPOUNDCRS" => Self::COMPOUNDCRS,
+            "VERT_CS" | "VERTCRS" | "VERTICALCRS" => Self::VERTICALCRS,
             /*
             "BOUNDCRS" => Self::BOUNDCRS,
-            "VERT_CS" | "VERTCRS" | "VERTICALCRS" => Self::VERT_CS,
             "LOCAL_CS" | "ENGCRS" | "ENGINEERINGCRS" => Self::LOCAL_CS,
             "TIMECRS" => Self::TIMECRS,
-            "COMPD_CS" | "COMPOUNDCRS" => Self::COMPD_CS,
             "FITTED_CS" => Self::FITTED_CS,
             "VERT_DATUM" | "VDATUM" | "VERTICALDATUM" | "VRF" => Self::VERT_DATUM,
             "LOCAL_DATUM" | "EDATUM" | "ENGINEERINGDATUM" => Self::LOCAL_DATUM,
@@ -95,7 +95,10 @@ pub enum Node<'a> {
     PROJCS(Projcs<'a>),
     GEOGCS(Geogcs<'a>),
     PROJECTION(Projection<'a>),
-    SPHEROID(Spheroid<'a>),
+    ELLIPSOID(Ellipsoid<'a>),
+    COMPOUNDCRS(Compoundcrs<'a>),
+    VERTICALCRS(Verticalcrs<'a>),
+    TOWGS84(Vec<&'a str>),
     OTHER(&'a str),
 }
 
@@ -120,17 +123,23 @@ impl<'a> Processor<'a> for Builder {
     where
         I: Iterator<Item = Attribute<'a, Self::Output>>,
     {
-        match Key::from(key) {
-            Key::PROJCS => self.projcs(attrs).map(Node::PROJCS),
-            Key::GEOGCS => self.geogcs(attrs).map(Node::GEOGCS),
-            Key::CONVERSION => self.projection(attrs).map(Node::PROJECTION),
-            Key::METHOD => self.method(attrs).map(Node::METHOD),
-            Key::PARAMETER => self.parameter(attrs).map(Node::PARAMETER),
-            Key::AUTHORITY => self.authority(attrs).map(Node::AUTHORITY),
-            Key::DATUM => self.datum(attrs).map(Node::DATUM),
-            Key::UNIT => self.unit(key, attrs).map(Node::UNIT),
+        match key {
+            "AUTHORITY" | "ID" => self.authority(attrs).map(Node::AUTHORITY),
+            "PROJCS" | "PROJCRS" | "PROJECTEDCRS" => self.projcs(attrs).map(Node::PROJCS),
+            "GEOGCS" | "GEOGCRS" | "GEOGRAPHICCRS" | "BASEGEODCRS" | "BASEGEOGCRS" => {
+                self.geogcs(attrs).map(Node::GEOGCS)
+            }
+            "ELLIPSOID" | "SPHEROID" => self.ellipsoid(attrs).map(Node::ELLIPSOID),
+            "CONVERSION" => self.projection(attrs).map(Node::PROJECTION),
+            "PROJECTION" | "METHOD" => self.method(attrs).map(Node::METHOD),
+            "PARAMETER" => self.parameter(attrs).map(Node::PARAMETER),
+            "DATUM" | "GEODETICDATUM" | "TRF" => self.datum(attrs).map(Node::DATUM),
+            "UNIT" => self.unit(key, attrs).map(Node::UNIT),
+            "COMPD_CS" | "COMPOUNDCRS" => self.compoundcrs(attrs).map(Node::COMPOUNDCRS),
+            "VERT_CS" | "VERTCRS" | "VERTICALCRS" => self.verticalcrs(attrs).map(Node::VERTICALCRS),
+            "TOWGS84" => self.towgs84(attrs).map(Node::TOWGS84),
             _ => {
-                // Consumme tokens
+                // Consume tokens
                 for _ in attrs {}
                 Ok(Node::OTHER(key))
             }
@@ -151,87 +160,40 @@ impl Builder {
         let mut authority = None;
 
         let mut parameters: Vec<Parameter<'a>> = vec![];
+
         for (i, a) in attrs.enumerate() {
             match a {
                 Attribute::Quoted(s) if i == 0 => name = Some(s),
                 Attribute::Keyword(_, n) => match n {
                     Node::GEOGCS(cs) => geogcs = Some(cs),
                     Node::PROJECTION(p) => projection = Some(p),
+                    // Handle WKT1
+                    Node::AUTHORITY(auth) => authority = Some(auth),
+                    Node::UNIT(u) => unit = Some(u),
                     Node::METHOD(m) => method = Some(m),
                     Node::PARAMETER(p) => parameters.push(p),
-                    Node::UNIT(u) => unit = Some(u),
-                    Node::AUTHORITY(auth) => authority = Some(auth),
                     _ => (),
                 },
                 _ => (),
             }
         }
 
-        // On pre WKT2015 parameters for projection are at the root level
+        // On pre WKT2 parameters for projection are at the root level
         if projection.is_none() {
-            if let Some(me) = method.as_mut() {
-                let name = me.name;
-                if me.authority.is_none() {
-                    me.authority = authority;
-                }
-                projection = Some(Projection {
-                    name,
-                    method,
-                    parameters,
-                    unit,
-                });
-            }
+            let me = method.ok_or(Error::WktError("No projection method defined".into()))?;
+            projection = Some(Projection {
+                name: "Unknown",
+                method: me,
+                parameters,
+                authority,
+            });
         }
 
         Ok(Projcs {
-            name: name.ok_or(Error::WktError("Missing PROJCS name".into()))?,
+            name: name.unwrap_or("Unknown"),
             geogcs: geogcs.ok_or(Error::WktError("Missing PROJCS GEOGCS".into()))?,
-            projection: projection
-                .ok_or(Error::WktError("Missing PROJCS projection".into()))?,
-        })
-    }
-
-    fn geogcs<'a>(
-        &self,
-        attrs: impl Iterator<Item = Attribute<'a, Node<'a>>>,
-    ) -> Result<Geogcs<'a>> {
-        let mut name = None;
-        let mut datum = None;
-
-        for (i, a) in attrs.enumerate() {
-            match a {
-                Attribute::Quoted(s) if i == 0 => name = Some(s),
-                Attribute::Keyword(_, n) => match n {
-                    Node::DATUM(d) => datum = Some(d),
-                    _ => (),
-                },
-                _ => (),
-            }
-        }
-
-        Ok(Geogcs {
-            name: name.unwrap_or(""),
-            datum,
-        })
-    }
-
-    fn datum<'a>(&self, attrs: impl Iterator<Item = Attribute<'a, Node<'a>>>) -> Result<Datum<'a>> {
-        let mut name = None;
-
-        for (i, a) in attrs.enumerate() {
-            match a {
-                Attribute::Quoted(s) if i == 0 => name = Some(s),
-                Attribute::Keyword(_, n) => match n {
-                    _ => (),
-                },
-                _ => (),
-            }
-        }
-
-        Ok(Datum {
-            name: name.ok_or(Error::WktError("Missing DATUM name".into()))?,
-            ellps: None,
-            to_wgs84: vec![],
+            projection: projection.ok_or(Error::WktError("Missing PROJCS projection".into()))?,
+            unit,
         })
     }
 
@@ -241,16 +203,17 @@ impl Builder {
     ) -> Result<Projection<'a>> {
         let mut name = None;
         let mut method = None;
+        let mut authority = None;
+
         let mut parameters: Vec<Parameter<'a>> = vec![];
-        let mut unit = None;
 
         for (i, a) in attrs.enumerate() {
             match a {
                 Attribute::Quoted(s) if i == 0 => name = Some(s),
                 Attribute::Keyword(_, n) => match n {
                     Node::METHOD(m) => method = Some(m),
-                    Node::UNIT(u) => unit = Some(u),
                     Node::PARAMETER(p) => parameters.push(p),
+                    Node::AUTHORITY(auth) => authority = Some(auth),
                     _ => (),
                 },
                 _ => (),
@@ -259,9 +222,11 @@ impl Builder {
 
         Ok(Projection {
             name: name.unwrap_or(""),
-            method,
+            method: method.ok_or(Error::WktError(
+                "Missing METHOD in projection definition".into(),
+            ))?,
             parameters,
-            unit,
+            authority,
         })
     }
 
@@ -275,10 +240,7 @@ impl Builder {
         for (i, a) in attrs.enumerate() {
             match a {
                 Attribute::Quoted(s) if i == 0 => name = Some(s),
-                Attribute::Keyword(_, n) => match n {
-                    Node::AUTHORITY(auth) => authority = Some(auth),
-                    _ => (),
-                },
+                Attribute::Keyword(_, Node::AUTHORITY(auth)) => authority = Some(auth),
                 _ => (),
             }
         }
@@ -296,12 +258,14 @@ impl Builder {
         let mut name = None;
         let mut value = None;
         let mut unit = None;
+        let mut authority = None;
 
         for (i, a) in attrs.enumerate() {
             match a {
                 Attribute::Quoted(s) if i == 0 => name = Some(s),
-                Attribute::Number(s) if i == 1 => value = Some(parse_number(s)?),
+                Attribute::Number(s) if i == 1 => value = Some(s),
                 Attribute::Keyword(_, n) => match n {
+                    Node::AUTHORITY(auth) => authority = Some(auth),
                     Node::UNIT(u) => unit = Some(u),
                     _ => (),
                 },
@@ -313,6 +277,58 @@ impl Builder {
             name: name.ok_or(Error::WktError("Missing PARAMETER name".into()))?,
             value: value.ok_or(Error::WktError("Missing PARAMETER value".into()))?,
             unit,
+            authority,
+        })
+    }
+
+    fn geogcs<'a>(
+        &self,
+        attrs: impl Iterator<Item = Attribute<'a, Node<'a>>>,
+    ) -> Result<Geogcs<'a>> {
+        let mut name = None;
+        let mut datum = None;
+        let mut unit = None;
+
+        for (i, a) in attrs.enumerate() {
+            match a {
+                Attribute::Quoted(s) if i == 0 => name = Some(s),
+                Attribute::Keyword(_, n) => match n {
+                    Node::DATUM(d) => datum = Some(d),
+                    Node::UNIT(u) => unit = Some(u),
+                    _ => (),
+                },
+                _ => (),
+            }
+        }
+
+        Ok(Geogcs {
+            name: name.unwrap_or(""),
+            datum: datum.ok_or(Error::WktError("Missing DATUM for Geodetic CRS".into()))?,
+            unit,
+        })
+    }
+
+    fn datum<'a>(&self, attrs: impl Iterator<Item = Attribute<'a, Node<'a>>>) -> Result<Datum<'a>> {
+        let mut name = None;
+        let mut ellipsoid = None;
+        let mut to_wgs84 = vec![];
+
+        for (i, a) in attrs.enumerate() {
+            match a {
+                Attribute::Quoted(s) if i == 0 => name = Some(s),
+                Attribute::Keyword(_, n) => match n {
+                    Node::ELLIPSOID(e) => ellipsoid = Some(e),
+                    Node::TOWGS84(v) => to_wgs84 = v,
+                    _ => (),
+                },
+                _ => (),
+            }
+        }
+
+        Ok(Datum {
+            name: name.unwrap_or("Unknown"),
+            ellipsoid: ellipsoid.ok_or(Error::WktError("Missing ellipsoid for DATUM".into()))?,
+            to_wgs84,
         })
     }
 
@@ -348,7 +364,7 @@ impl Builder {
         for (i, a) in attrs.enumerate() {
             match a {
                 Attribute::Quoted(s) if i == 0 => name = Some(s),
-                Attribute::Number(s) if i == 1 => factor = Some(parse_number(s)?),
+                Attribute::Number(s) if i == 1 => factor = Some(s),
                 _ => (),
             }
         }
@@ -357,15 +373,117 @@ impl Builder {
             name: name.ok_or(Error::WktError("Missing UNIT name".into()))?,
             factor: factor.ok_or(Error::WktError("Missing UNIT factor".into()))?,
             unit_type: match key {
-                "ANGLEUNIT" => UnitType::Length,
+                "ANGLEUNIT" => UnitType::Angular,
                 "SCALUNIT" => UnitType::Scale,
-                "LENGTHUNIT" => UnitType::Length,
+                "LENGTHUNIT" => UnitType::Linear,
                 _ => UnitType::Unknown,
             },
         })
     }
+
+    fn compoundcrs<'a>(
+        &self,
+        attrs: impl Iterator<Item = Attribute<'a, Node<'a>>>,
+    ) -> Result<Compoundcrs<'a>> {
+        let mut name = None;
+        let mut h_crs = None;
+        let mut v_crs = None;
+
+        for (i, a) in attrs.enumerate() {
+            match a {
+                Attribute::Quoted(s) if i == 0 => name = Some(s),
+                Attribute::Keyword(_, n) => match n {
+                    Node::PROJCS(cs) => h_crs = Some(Horizontalcrs::Projcs(cs)),
+                    Node::GEOGCS(cs) => h_crs = Some(Horizontalcrs::Geogcs(cs)),
+                    Node::VERTICALCRS(cs) => v_crs = Some(cs),
+                    _ => (),
+                },
+                _ => (),
+            }
+        }
+
+        Ok(Compoundcrs {
+            name: name.ok_or(Error::WktError("Missing Compound Crs name".into()))?,
+            h_crs: h_crs.ok_or(Error::WktError(
+                "Missing Horzontal CRS for compound crs name".into(),
+            ))?,
+            v_crs: v_crs.ok_or(Error::WktError("Missing Vertical crs for compound".into()))?,
+        })
+    }
+
+    fn verticalcrs<'a>(
+        &self,
+        attrs: impl Iterator<Item = Attribute<'a, Node<'a>>>,
+    ) -> Result<Verticalcrs<'a>> {
+        let mut name = None;
+
+        for (i, a) in attrs.enumerate() {
+            match a {
+                Attribute::Quoted(s) if i == 0 => name = Some(s),
+                _ => (),
+            }
+        }
+
+        Ok(Verticalcrs {
+            name: name.unwrap_or(""),
+        })
+    }
+
+    fn ellipsoid<'a>(
+        &self,
+        attrs: impl Iterator<Item = Attribute<'a, Node<'a>>>,
+    ) -> Result<Ellipsoid<'a>> {
+        let mut name = None;
+        let mut semi_major = None;
+        let mut rf = None;
+        let mut unit = None;
+
+        for (i, a) in attrs.enumerate() {
+            match a {
+                Attribute::Quoted(s) if i == 0 => name = Some(s),
+                Attribute::Number(s) if i == 1 => semi_major = Some(s),
+                Attribute::Number(s) if i == 2 => rf = Some(s),
+                Attribute::Keyword(_, Node::UNIT(u)) => unit = Some(u),
+                _ => (),
+            }
+        }
+
+        Ok(Ellipsoid {
+            name: name.ok_or(Error::WktError("Missing AUTHORITY name".into()))?,
+            a: semi_major.ok_or(Error::WktError("Invalid ELLIPSOID semi-major axis".into()))?,
+            rf: rf.ok_or(Error::WktError(
+                "Invalid ELLIPSOID inverse flattening".into(),
+            ))?,
+            unit,
+        })
+    }
+
+    fn towgs84<'a>(
+        &self,
+        attrs: impl Iterator<Item = Attribute<'a, Node<'a>>>,
+    ) -> Result<Vec<&'a str>> {
+        let mut to_wgs84 = vec![];
+
+        for a in attrs {
+            match a {
+                Attribute::Number(s) => to_wgs84.push(s),
+                _ => {
+                    return Err(Error::WktError(format!("Expecting number not {a:?}")));
+                }
+            }
+        }
+
+        if !matches!(to_wgs84.len(), 0 | 3 | 7) {
+            return Err(Error::WktError(
+                "Wrong number of parameters for TOWGS84".into(),
+            ));
+        }
+
+        Ok(to_wgs84)
+    }
 }
 
+/*
 use crate::parse::FromStr;
 
 pub fn parse_number(s: &str) -> Result<f64> {
@@ -375,3 +493,4 @@ pub fn parse_number(s: &str) -> Result<f64> {
 pub fn parse_int(s: &str) -> Result<i32> {
     i32::from_str(s).map_err(|err| Error::WktError(format!("Error parsing integer: {err:?}")))
 }
+*/
