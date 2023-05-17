@@ -11,7 +11,7 @@ use std::fmt::{self, Write};
 
 #[derive(Default)]
 pub struct ProjStringFormatter<T: Write> {
-    w: T
+    w: T,
 }
 
 impl<T: Write> ProjStringFormatter<T> {
@@ -49,9 +49,7 @@ impl<T: Write> ProjStringFormatter<T> {
         } else {
             self.w.write_str(" +towgs84=")?;
             datum.to_wgs84.iter().try_fold("", |sep, n| {
-                write!(self.w, "{sep}{n}")
-                    .map_err(Error::from)
-                    .and(Ok(","))
+                write!(self.w, "{sep}{n}").map_err(Error::from).and(Ok(","))
             })?;
         }
         Ok(())
@@ -105,13 +103,14 @@ impl<T: Write> ProjStringFormatter<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::{ setup, fixtures };
-    use crate::parser::parse;
     use crate::builder::Builder;
+    use crate::parser::parse;
+    use crate::tests::{fixtures, setup};
 
     fn to_projstring(i: &str) -> Result<String> {
         let mut buf = String::new();
-        Builder::new().parse(i)
+        Builder::new()
+            .parse(i)
             .and_then(|node| ProjStringFormatter::new(&mut buf).format(&node))
             .and(Ok(buf))
     }
@@ -120,7 +119,13 @@ mod tests {
     fn convert_projcs_nad83() {
         setup();
         let wkt = to_projstring(fixtures::WKT_PROJCS_NAD83).unwrap();
-        assert_eq!(wkt, "foobar");
+        assert_eq!(
+            wkt,
+            concat!(
+                "+proj=lcc +lat_1=42.68333333333333 +lat_2=41.71666666666667",
+                " +lat_0=-41 +lon_0=-71.5 +x_0=200000 +y_0=750000 +a=6378137",
+                " +rf=298.257222101 +towgs84=0,0,0,0,0,0,0",
+            )
+        );
     }
 }
- 
