@@ -18,6 +18,7 @@ const WKT1_LONGITUDE_OF_CENTER: &str = "longitude_of_center";
 const WKT1_AZIMUTH: &str = "azimuth";
 const WKT1_RECTIFIED_GRID_ANGLE: &str = "rectified_grid_angle";
 
+#[derive(Debug)]
 pub struct ParamMapping {
     pub proj_name: &'static str,
     pub wkt2_name: &'static str,

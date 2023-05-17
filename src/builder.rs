@@ -360,11 +360,13 @@ impl Builder {
     ) -> Result<Unit<'a>> {
         let mut name = None;
         let mut factor = None;
+        let mut authority = None;
 
         for (i, a) in attrs.enumerate() {
             match a {
                 Attribute::Quoted(s) if i == 0 => name = Some(s),
-                Attribute::Number(s) if i == 1 => factor = Some(s),
+                Attribute::Number(s) if i == 1 => factor = Some(parse_number(s)?),
+                Attribute::Keyword(_, Node::AUTHORITY(auth)) => authority = Some(auth),
                 _ => (),
             }
         }
@@ -378,6 +380,7 @@ impl Builder {
                 "LENGTHUNIT" => UnitType::Linear,
                 _ => UnitType::Unknown,
             },
+            authority,
         })
     }
 
@@ -483,13 +486,13 @@ impl Builder {
     }
 }
 
-/*
 use crate::parse::FromStr;
 
 pub fn parse_number(s: &str) -> Result<f64> {
     f64::from_str(s).map_err(|err| Error::WktError(format!("Error parsing number: {err:?}")))
 }
 
+/*
 pub fn parse_int(s: &str) -> Result<i32> {
     i32::from_str(s).map_err(|err| Error::WktError(format!("Error parsing integer: {err:?}")))
 }

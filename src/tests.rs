@@ -87,8 +87,12 @@ fn build_unit() {
         r,
         Node::UNIT(Unit {
             name: "degree",
-            factor: "0.01745329251994328",
+            factor: 0.01745329251994328,
             unit_type: UnitType::Unknown,
+            authority: Some(Authority {
+                name: "EPSG",
+                code: "9122",
+            }),
         })
     );
 }
@@ -152,8 +156,12 @@ fn build_nad83() {
                 },
                 unit: Some(Unit {
                     name: "degree",
-                    factor: "0.01745329251994328",
+                    factor: 0.01745329251994328,
                     unit_type: UnitType::Unknown,
+                    authority: Some(Authority {
+                        name: "EPSG",
+                        code: "9122",
+                    }),
                 }),
             },
             projection: Projection {
@@ -207,8 +215,12 @@ fn build_nad83() {
             },
             unit: Some(Unit {
                 name: "metre",
-                factor: "1",
-                unit_type: UnitType::Unknown
+                factor: 1.0,
+                unit_type: UnitType::Unknown,
+                authority: Some(Authority {
+                    name: "EPSG",
+                    code: "9001",
+                }),
             }),
         }),
     );

@@ -29,6 +29,7 @@ pub struct Projcs<'a> {
     pub name: &'a str,
     pub geogcs: Geogcs<'a>,
     pub projection: Projection<'a>,
+    // WKT1
     pub unit: Option<Unit<'a>>,
 }
 
@@ -69,12 +70,34 @@ pub enum UnitType {
     Unknown,
 }
 
+/// See https://epsg.io/?q=foot%20kind%3AUNIT
+/// for units EPSG definition
 #[derive(Debug, PartialEq)]
 pub struct Unit<'a> {
     pub name: &'a str,
-    pub factor: &'a str,
+    pub factor: f64,
     pub unit_type: UnitType,
+    pub authority: Option<Authority<'a>>,
 }
+
+impl<'a> Unit<'a> {
+    pub fn is_metre(&self) -> bool {
+        if let Some(auth) = &self.authority {
+            auth.name == "EPSG" && auth.code == "9001"
+        } else {
+            self.unit_type == UnitType::Linear && self.name == "metre"
+        }
+    }
+
+    pub fn is_degree(&self) -> bool {
+        if let Some(auth) = &self.authority {
+            auth.name == "EPSG" && matches!(auth.code, "9102" | "9122")
+        } else {
+            self.unit_type == UnitType::Angular && self.name == "degree"
+        }
+    }
+}
+
 // see https://docs.ogc.org/is/18-010r7/18-010r7.html#125
 #[derive(Debug, PartialEq)]
 #[non_exhaustive]
