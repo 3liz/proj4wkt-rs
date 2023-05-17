@@ -89,10 +89,6 @@ fn build_unit() {
             name: "degree",
             factor: 0.01745329251994328,
             unit_type: UnitType::Unknown,
-            authority: Some(Authority {
-                name: "EPSG",
-                code: "9122",
-            }),
         })
     );
 }
@@ -140,7 +136,7 @@ fn build_nad83() {
     println!("{r:#?}");
     assert_eq!(
         r,
-        Node::PROJCS(Projcs {
+        Node::PROJCRS(Projcs {
             name: "NAD83 / Massachusetts Mainland",
             geogcs: Geogcs {
                 name: "NAD83",
@@ -157,11 +153,7 @@ fn build_nad83() {
                 unit: Some(Unit {
                     name: "degree",
                     factor: 0.01745329251994328,
-                    unit_type: UnitType::Unknown,
-                    authority: Some(Authority {
-                        name: "EPSG",
-                        code: "9122",
-                    }),
+                    unit_type: UnitType::Angular,
                 }),
             },
             projection: Projection {
@@ -216,11 +208,7 @@ fn build_nad83() {
             unit: Some(Unit {
                 name: "metre",
                 factor: 1.0,
-                unit_type: UnitType::Unknown,
-                authority: Some(Authority {
-                    name: "EPSG",
-                    code: "9001",
-                }),
+                unit_type: UnitType::Linear,
             }),
         }),
     );

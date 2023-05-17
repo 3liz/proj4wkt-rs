@@ -14,77 +14,6 @@ use crate::parser::{parse, Attribute, Processor};
 
 #[allow(non_camel_case_types)]
 #[allow(clippy::upper_case_acronyms)]
-#[derive(Debug, Copy, Clone, PartialEq)]
-enum Key {
-    GEOGCS,
-    GEOCCS,
-    PROJCS,
-    CONVERSION,
-    METHOD,
-    VERTICALCRS,
-    LOCAL_CS,
-    TIMECRS,
-    COMPOUNDCRS,
-    FITTED_CS,
-    DATUM,
-    VERT_DATUM,
-    LOCAL_DATUM,
-    ELLIPSOID,
-    PRIMEM,
-    PROJECTION,
-    PARAMETER,
-    AXIS,
-    UNIT,
-    AUTHORITY,
-    BOUNDCRS,
-    TOWGS84,
-    OTHER,
-}
-
-// See https://docs.ogc.org/is/18-010r7/18-010r7.html
-impl From<&str> for Key {
-    fn from(key: &str) -> Self {
-        match key {
-            // Geodetic CRS
-            "GEOGCS" | "GEOGCRS" | "GEOGRAPHICCRS" | "BASEGEODCRS" | "BASEGEOGCRS" => Self::GEOGCS,
-            // Geodetic CRS with geocentric Cartesian coordinate system
-            "GEOCCS" | "GEODCRS" | "GEODETICCRS" => Self::GEOCCS,
-            // Projected CRS
-            "PROJCS" | "PROJCRS" | "PROJECTEDCRS" => Self::PROJCS,
-            // Datum - geodetic reference frame
-            "DATUM" | "GEODETICDATUM" | "TRF" => Self::DATUM,
-            // Ellipsoid
-            "ELLIPSOID" | "SPHEROID" => Self::ELLIPSOID,
-            // Prime meridian
-            "PRIMEM" | "PRIMEMERIDIAN" => Self::PRIMEM,
-            // Map projection method
-            "PROJECTION" | "METHOD" => Self::METHOD,
-            // Map projection
-            "CONVERSION" => Self::CONVERSION,
-            "PARAMETER" => Self::PARAMETER,
-            "AXIS" => Self::AXIS,
-            "UNIT" | "LENGTHUNIT" | "ANGLEUNIT" | "SCALUNIT" => Self::UNIT,
-            "AUTHORITY" | "ID" => Self::AUTHORITY,
-            // To wgs84 factors
-            "TOWGS84" => Self::TOWGS84,
-            "COMPD_CS" | "COMPOUNDCRS" => Self::COMPOUNDCRS,
-            "VERT_CS" | "VERTCRS" | "VERTICALCRS" => Self::VERTICALCRS,
-            /*
-            "BOUNDCRS" => Self::BOUNDCRS,
-            "LOCAL_CS" | "ENGCRS" | "ENGINEERINGCRS" => Self::LOCAL_CS,
-            "TIMECRS" => Self::TIMECRS,
-            "FITTED_CS" => Self::FITTED_CS,
-            "VERT_DATUM" | "VDATUM" | "VERTICALDATUM" | "VRF" => Self::VERT_DATUM,
-            "LOCAL_DATUM" | "EDATUM" | "ENGINEERINGDATUM" => Self::LOCAL_DATUM,
-            */
-            // Same concept as TOWGS84
-            //"ABRIDGEDTRANSFORMATION" => (),
-            _ => Self::OTHER,
-        }
-    }
-}
-#[allow(non_camel_case_types)]
-#[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, PartialEq)]
 pub enum Node<'a> {
     AUTHORITY(Authority<'a>),
@@ -92,8 +21,8 @@ pub enum Node<'a> {
     METHOD(Method<'a>),
     PARAMETER(Parameter<'a>),
     DATUM(Datum<'a>),
-    PROJCS(Projcs<'a>),
-    GEOGCS(Geogcs<'a>),
+    PROJCRS(Projcs<'a>),
+    GEOGCRS(Geogcs<'a>),
     PROJECTION(Projection<'a>),
     ELLIPSOID(Ellipsoid<'a>),
     COMPOUNDCRS(Compoundcrs<'a>),
@@ -107,7 +36,7 @@ pub struct Builder;
 
 impl Builder {
     pub fn new() -> Self {
-        Builder {}
+        Builder::default()
     }
 
     pub fn parse<'a>(&self, s: &'a str) -> Result<Node<'a>> {
@@ -125,9 +54,9 @@ impl<'a> Processor<'a> for Builder {
     {
         match key {
             "AUTHORITY" | "ID" => self.authority(attrs).map(Node::AUTHORITY),
-            "PROJCS" | "PROJCRS" | "PROJECTEDCRS" => self.projcs(attrs).map(Node::PROJCS),
+            "PROJCS" | "PROJCRS" | "PROJECTEDCRS" => self.projcs(attrs).map(Node::PROJCRS),
             "GEOGCS" | "GEOGCRS" | "GEOGRAPHICCRS" | "BASEGEODCRS" | "BASEGEOGCRS" => {
-                self.geogcs(attrs).map(Node::GEOGCS)
+                self.geogcs(attrs).map(Node::GEOGCRS)
             }
             "ELLIPSOID" | "SPHEROID" => self.ellipsoid(attrs).map(Node::ELLIPSOID),
             "CONVERSION" => self.projection(attrs).map(Node::PROJECTION),
@@ -165,7 +94,7 @@ impl Builder {
             match a {
                 Attribute::Quoted(s) if i == 0 => name = Some(s),
                 Attribute::Keyword(_, n) => match n {
-                    Node::GEOGCS(cs) => geogcs = Some(cs),
+                    Node::GEOGCRS(cs) => geogcs = Some(cs),
                     Node::PROJECTION(p) => projection = Some(p),
                     // Handle WKT1
                     Node::AUTHORITY(auth) => authority = Some(auth),
@@ -189,9 +118,23 @@ impl Builder {
             });
         }
 
+        if let Some(mut u) = unit.as_mut() {
+            match u.unit_type {
+                // Projcs unit should be linear
+                UnitType::Unknown => u.unit_type = UnitType::Linear,
+                UnitType::Angular => {
+                    // Hu ?
+                    return Err(Error::WktError(
+                        "Expecting linear unit for projcted crs axis".into(),
+                    ));
+                }
+                _ => (),
+            }
+        }
+
         Ok(Projcs {
             name: name.unwrap_or("Unknown"),
-            geogcs: geogcs.ok_or(Error::WktError("Missing PROJCS GEOGCS".into()))?,
+            geogcs: geogcs.ok_or(Error::WktError("Missing PROJCRS geodetic crs".into()))?,
             projection: projection.ok_or(Error::WktError("Missing PROJCS projection".into()))?,
             unit,
         })
@@ -301,9 +244,23 @@ impl Builder {
             }
         }
 
+        if let Some(mut u) = unit.as_mut() {
+            match u.unit_type {
+                // Geogcs unit should be angular
+                UnitType::Unknown => u.unit_type = UnitType::Angular,
+                UnitType::Linear => {
+                    // Hu ?
+                    return Err(Error::WktError(
+                        "Expecting angular unit for geodetic crs".into(),
+                    ));
+                }
+                _ => (),
+            }
+        }
+
         Ok(Geogcs {
             name: name.unwrap_or(""),
-            datum: datum.ok_or(Error::WktError("Missing DATUM for Geodetic CRS".into()))?,
+            datum: datum.ok_or(Error::WktError("Missing DATUM for geodetic crs".into()))?,
             unit,
         })
     }
@@ -380,7 +337,6 @@ impl Builder {
                 "LENGTHUNIT" => UnitType::Linear,
                 _ => UnitType::Unknown,
             },
-            authority,
         })
     }
 
@@ -396,8 +352,8 @@ impl Builder {
             match a {
                 Attribute::Quoted(s) if i == 0 => name = Some(s),
                 Attribute::Keyword(_, n) => match n {
-                    Node::PROJCS(cs) => h_crs = Some(Horizontalcrs::Projcs(cs)),
-                    Node::GEOGCS(cs) => h_crs = Some(Horizontalcrs::Geogcs(cs)),
+                    Node::PROJCRS(cs) => h_crs = Some(Horizontalcrs::Projcs(cs)),
+                    Node::GEOGCRS(cs) => h_crs = Some(Horizontalcrs::Geogcs(cs)),
                     Node::VERTICALCRS(cs) => v_crs = Some(cs),
                     _ => (),
                 },

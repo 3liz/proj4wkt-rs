@@ -8,7 +8,7 @@ use crate::model::*;
 use crate::params::ParamMapping;
 
 use std::borrow::Cow;
-use std::fmt::{self, Write};
+use std::fmt::Write;
 
 #[derive(Default)]
 pub struct ProjStringFormatter<T: Write> {
@@ -22,8 +22,8 @@ impl<T: Write> ProjStringFormatter<T> {
 
     pub fn format(&mut self, node: &Node) -> Result<()> {
         match node {
-            Node::GEOGCS(cs) => self.add_geogcs(cs),
-            Node::PROJCS(cs) => self.add_projcs(cs),
+            Node::GEOGCRS(cs) => self.add_geogcs(cs),
+            Node::PROJCRS(cs) => self.add_projcs(cs),
             Node::COMPOUNDCRS(crs) => match &crs.h_crs {
                 Horizontalcrs::Projcs(cs) => self.add_projcs(cs),
                 Horizontalcrs::Geogcs(cs) => self.add_geogcs(cs),
@@ -65,7 +65,7 @@ impl<T: Write> ProjStringFormatter<T> {
         if let Some(unit) = &ellps.unit {
             match unit.unit_type {
                 UnitType::Linear => {
-                    if !unit.is_metre() {
+                    if unit.factor != 1.0 {
                         // Convert to meter
                         let a = parse_number(a)? * unit.factor;
                         let rf = parse_number(rf)? * unit.factor;
@@ -92,8 +92,15 @@ impl<T: Write> ProjStringFormatter<T> {
         // Check the projection
         if let Some(mapping) = find_method_mapping(&projcs.projection.method) {
             write!(self.w, "+proj={}", mapping.proj_name())?;
-            self.add_parameters(&projcs.projection.parameters, mapping, projcs.unit.as_ref())?;
+
+            // TODO check how to get relevant axis units on wkt2
+
+            let axis_unit = projcs.unit.as_ref();
+            let geod_unit = projcs.geogcs.unit.as_ref();
+
+            self.add_parameters(&projcs.projection.parameters, mapping, axis_unit, geod_unit)?;
             self.add_datum(&projcs.geogcs.datum)?;
+
             let proj_aux = mapping.proj_aux();
             if !proj_aux.is_empty() {
                 write!(self.w, " {proj_aux}")?;
@@ -111,62 +118,40 @@ impl<T: Write> ProjStringFormatter<T> {
         &mut self,
         params: &[Parameter],
         mapping: &MethodMapping,
-        unit: Option<&Unit>,
+        axis_unit: Option<&Unit>,
+        geod_unit: Option<&Unit>,
     ) -> Result<()> {
-        fn convert_to_metre(value: &str, pm: &ParamMapping, unit: &Unit) -> Result<f64> {
-            let value = parse_number(value)?;
-            match unit.unit_type {
-                UnitType::Linear => Ok(value * unit.factor),
-                _ => {
-                    // XXX How to handle this ?
-                    Err(Error::WktError(format!(
-                        "Unexpected unit '{unit:?}' for parameter '{pm:?}'"
-                    )))
+        fn write_unit<W: Write>(
+            w: &mut W,
+            name: &str,
+            p: &Parameter,
+            ref_unit: Option<&Unit>,
+        ) -> Result<()> {
+            // See https://docs.ogc.org/is/12-063r5/12-063r5.html#66
+            // for constraint on parameter's unit
+            if let Some(unit) = p.unit.as_ref().or(ref_unit) {
+                if unit.unit_type == UnitType::Linear {
+                    if unit.factor != 1.0 {
+                        return parse_number(p.value).and_then(|value| {
+                            write!(w, " +{}={}", name, value * unit.factor).map_err(Error::from)
+                        });
+                    }
+                } else if !unit.name.eq_ignore_ascii_case("degree") {
+                    return parse_number(p.value).and_then(|value| {
+                        write!(w, " +{}={}", name, (value * unit.factor).to_degrees())
+                            .map_err(Error::from)
+                    });
                 }
             }
-        }
-
-        fn convert_to_degree(value: &str, pm: &ParamMapping, unit: &Unit) -> Result<f64> {
-            let value = parse_number(value)?;
-            match unit.unit_type {
-                UnitType::Angular => {
-                    // Factor convert to radians
-                    Ok((value * unit.factor).to_degrees())
-                }
-                _ => {
-                    // XXX How to handle this ?
-                    Err(Error::WktError(format!(
-                        "Unexpected unit '{unit:?}' for parameter '{pm:?}'"
-                    )))
-                }
-            }
+            write!(w, " +{}={}", name, p.value).map_err(Error::from)
         }
 
         params.iter().try_for_each(|p| {
             if let Some(pm) = mapping.find_proj_param(p) {
-                if let Some(unit) = p.unit.as_ref().or(unit) {
-                    match (&pm.unit_type, &unit.unit_type) {
-                        (UnitType::Linear, UnitType::Linear) if !unit.is_metre() => {
-                            convert_to_metre(p.value, pm, unit).and_then(|value| {
-                                write!(self.w, " +{}={}", pm.proj_name, value).map_err(Error::from)
-                            })
-                        }
-                        (UnitType::Angular, UnitType::Angular) if !unit.is_degree() => {
-                            convert_to_degree(p.value, pm, unit).and_then(|value| {
-                                write!(self.w, " +{}={}", pm.proj_name, value).map_err(Error::from)
-                            })
-                        }
-                        (UnitType::Scale, UnitType::Scale) if unit.factor != 1.0 => {
-                            parse_number(p.value).and_then(|value| {
-                                write!(self.w, " +{}={}", pm.proj_name, value * unit.factor)
-                                    .map_err(Error::from)
-                            })
-                        }
-                        _ => write!(self.w, " +{}={}", pm.proj_name, p.value).map_err(Error::from),
-                    }
-                } else {
-                    // No units defined, assume default
-                    write!(self.w, " +{}={}", pm.proj_name, p.value).map_err(Error::from)
+                match pm.unit_type {
+                    UnitType::Linear => write_unit(&mut self.w, pm.proj_name, p, axis_unit),
+                    UnitType::Angular => write_unit(&mut self.w, pm.proj_name, p, geod_unit),
+                    _ => write!(self.w, " +{}={}", pm.proj_name, p.value).map_err(Error::from),
                 }
             } else {
                 // Irrelevant proj mapping
@@ -174,13 +159,12 @@ impl<T: Write> ProjStringFormatter<T> {
             }
         })?;
 
-        match unit {
+        match axis_unit {
             Some(unit) => {
-                if unit.is_metre() {
-                    // WKT1, behave like proj
-                    self.w.write_str(" +units=m")?;
-                } else {
+                if unit.factor != 1.0 {
                     write!(self.w, " +to_meter={}", unit.factor)?;
+                } else {
+                    self.w.write_str(" +units=m")?;
                 }
             }
             None => self.w.write_str(" +units=m")?,
