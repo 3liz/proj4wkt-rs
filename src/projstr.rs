@@ -26,9 +26,9 @@ impl<T: Write> Formatter<T> {
                 Horizontalcrs::Projcs(cs) => self.add_projcs(cs),
                 Horizontalcrs::Geogcs(cs) => self.add_geogcs(cs),
             },
-            _ => Err(Error::WktError(format!(
-                "Cannot create projstring from {node:?}"
-            ))),
+            _ => Err(Error::Wkt(
+                format!("Cannot create projstring from {node:?}").into(),
+            )),
         }
     }
 
@@ -71,10 +71,9 @@ impl<T: Write> Formatter<T> {
                 }
                 _ => {
                     // XXX How to handle this ?
-                    return Err(Error::WktError(format!(
-                        "Unexpected {:?} unit for ellipsoid",
-                        unit.unit_type
-                    )));
+                    return Err(Error::Wkt(
+                        format!("Unexpected {:?} unit for ellipsoid", unit.unit_type).into(),
+                    ));
                 }
             }
         } else {
@@ -102,10 +101,13 @@ impl<T: Write> Formatter<T> {
             }
             Ok(())
         } else {
-            Err(Error::WktError(format!(
-                "No projection mapping found for {:?}",
-                projcs.projection.method
-            )))
+            Err(Error::Wkt(
+                format!(
+                    "No projection mapping found for {:?}",
+                    projcs.projection.method
+                )
+                .into(),
+            ))
         }
     }
 

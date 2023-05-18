@@ -109,7 +109,7 @@ impl Builder {
 
         // On pre WKT2 parameters for projection are at the root level
         if projection.is_none() {
-            let me = method.ok_or(Error::WktError("No projection method defined".into()))?;
+            let me = method.ok_or(Error::Wkt("No projection method defined".into()))?;
             projection = Some(Projection {
                 name: "Unknown",
                 method: me,
@@ -124,7 +124,7 @@ impl Builder {
                 UnitType::Unknown => u.unit_type = UnitType::Linear,
                 UnitType::Angular => {
                     // Hu ?
-                    return Err(Error::WktError(
+                    return Err(Error::Wkt(
                         "Expecting linear unit for projcted crs axis".into(),
                     ));
                 }
@@ -134,8 +134,8 @@ impl Builder {
 
         Ok(Projcs {
             name: name.unwrap_or("Unknown"),
-            geogcs: geogcs.ok_or(Error::WktError("Missing PROJCRS geodetic crs".into()))?,
-            projection: projection.ok_or(Error::WktError("Missing PROJCS projection".into()))?,
+            geogcs: geogcs.ok_or(Error::Wkt("Missing PROJCRS geodetic crs".into()))?,
+            projection: projection.ok_or(Error::Wkt("Missing PROJCS projection".into()))?,
             unit,
         })
     }
@@ -165,9 +165,7 @@ impl Builder {
 
         Ok(Projection {
             name: name.unwrap_or(""),
-            method: method.ok_or(Error::WktError(
-                "Missing METHOD in projection definition".into(),
-            ))?,
+            method: method.ok_or(Error::Wkt("Missing METHOD in projection definition".into()))?,
             parameters,
             authority,
         })
@@ -189,7 +187,7 @@ impl Builder {
         }
 
         Ok(Method {
-            name: name.ok_or(Error::WktError("Missing METHOD or PROJECTION name".into()))?,
+            name: name.ok_or(Error::Wkt("Missing METHOD or PROJECTION name".into()))?,
             authority,
         })
     }
@@ -217,8 +215,8 @@ impl Builder {
         }
 
         Ok(Parameter {
-            name: name.ok_or(Error::WktError("Missing PARAMETER name".into()))?,
-            value: value.ok_or(Error::WktError("Missing PARAMETER value".into()))?,
+            name: name.ok_or(Error::Wkt("Missing PARAMETER name".into()))?,
+            value: value.ok_or(Error::Wkt("Missing PARAMETER value".into()))?,
             unit,
             authority,
         })
@@ -250,9 +248,7 @@ impl Builder {
                 UnitType::Unknown => u.unit_type = UnitType::Angular,
                 UnitType::Linear => {
                     // Hu ?
-                    return Err(Error::WktError(
-                        "Expecting angular unit for geodetic crs".into(),
-                    ));
+                    return Err(Error::Wkt("Expecting angular unit for geodetic crs".into()));
                 }
                 _ => (),
             }
@@ -260,7 +256,7 @@ impl Builder {
 
         Ok(Geogcs {
             name: name.unwrap_or(""),
-            datum: datum.ok_or(Error::WktError("Missing DATUM for geodetic crs".into()))?,
+            datum: datum.ok_or(Error::Wkt("Missing DATUM for geodetic crs".into()))?,
             unit,
         })
     }
@@ -284,7 +280,7 @@ impl Builder {
 
         Ok(Datum {
             name: name.unwrap_or("Unknown"),
-            ellipsoid: ellipsoid.ok_or(Error::WktError("Missing ellipsoid for DATUM".into()))?,
+            ellipsoid: ellipsoid.ok_or(Error::Wkt("Missing ellipsoid for DATUM".into()))?,
             to_wgs84,
         })
     }
@@ -305,8 +301,8 @@ impl Builder {
         }
 
         Ok(Authority {
-            name: name.ok_or(Error::WktError("Missing AUTHORITY name".into()))?,
-            code: code.ok_or(Error::WktError("Missing AUTHORITY code".into()))?,
+            name: name.ok_or(Error::Wkt("Missing AUTHORITY name".into()))?,
+            code: code.ok_or(Error::Wkt("Missing AUTHORITY code".into()))?,
         })
     }
 
@@ -329,8 +325,8 @@ impl Builder {
         }
 
         Ok(Unit {
-            name: name.ok_or(Error::WktError("Missing UNIT name".into()))?,
-            factor: factor.ok_or(Error::WktError("Missing UNIT factor".into()))?,
+            name: name.ok_or(Error::Wkt("Missing UNIT name".into()))?,
+            factor: factor.ok_or(Error::Wkt("Missing UNIT factor".into()))?,
             unit_type: match key {
                 "ANGLEUNIT" => UnitType::Angular,
                 "SCALUNIT" => UnitType::Scale,
@@ -362,11 +358,11 @@ impl Builder {
         }
 
         Ok(Compoundcrs {
-            name: name.ok_or(Error::WktError("Missing Compound Crs name".into()))?,
-            h_crs: h_crs.ok_or(Error::WktError(
+            name: name.ok_or(Error::Wkt("Missing Compound Crs name".into()))?,
+            h_crs: h_crs.ok_or(Error::Wkt(
                 "Missing Horzontal CRS for compound crs name".into(),
             ))?,
-            v_crs: v_crs.ok_or(Error::WktError("Missing Vertical crs for compound".into()))?,
+            v_crs: v_crs.ok_or(Error::Wkt("Missing Vertical crs for compound".into()))?,
         })
     }
 
@@ -408,11 +404,9 @@ impl Builder {
         }
 
         Ok(Ellipsoid {
-            name: name.ok_or(Error::WktError("Missing AUTHORITY name".into()))?,
-            a: semi_major.ok_or(Error::WktError("Invalid ELLIPSOID semi-major axis".into()))?,
-            rf: rf.ok_or(Error::WktError(
-                "Invalid ELLIPSOID inverse flattening".into(),
-            ))?,
+            name: name.ok_or(Error::Wkt("Missing AUTHORITY name".into()))?,
+            a: semi_major.ok_or(Error::Wkt("Invalid ELLIPSOID semi-major axis".into()))?,
+            rf: rf.ok_or(Error::Wkt("Invalid ELLIPSOID inverse flattening".into()))?,
             unit,
         })
     }
@@ -427,15 +421,13 @@ impl Builder {
             match a {
                 Attribute::Number(s) => to_wgs84.push(s),
                 _ => {
-                    return Err(Error::WktError(format!("Expecting number not {a:?}")));
+                    return Err(Error::Wkt(format!("Expecting number not {a:?}").into()));
                 }
             }
         }
 
         if !matches!(to_wgs84.len(), 0 | 3 | 7) {
-            return Err(Error::WktError(
-                "Wrong number of parameters for TOWGS84".into(),
-            ));
+            return Err(Error::Wkt("Wrong number of parameters for TOWGS84".into()));
         }
 
         Ok(to_wgs84)
@@ -445,11 +437,11 @@ impl Builder {
 use crate::parse::FromStr;
 
 pub fn parse_number(s: &str) -> Result<f64> {
-    f64::from_str(s).map_err(|err| Error::WktError(format!("Error parsing number: {err:?}")))
+    f64::from_str(s).map_err(|err| Error::Wkt(format!("Error parsing number: {err:?}").into()))
 }
 
 /*
 pub fn parse_int(s: &str) -> Result<i32> {
-    i32::from_str(s).map_err(|err| Error::WktError(format!("Error parsing integer: {err:?}")))
+    i32::from_str(s).map_err(|err| Error::Wkt(format!("Error parsing integer: {err:?}").into()))
 }
 */

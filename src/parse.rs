@@ -24,7 +24,7 @@ mod wasm {
         fn from_str(s: &str) -> Result<Self, Self::Err> {
             let v = parse_float(s);
             if v.is_nan() {
-                Err(Error::JsParseError)
+                Err(Error::JsParse)
             } else {
                 Ok(v)
             }
@@ -37,7 +37,7 @@ mod wasm {
         fn from_str(s: &str) -> Result<Self, Self::Err> {
             let v = parse_int(s, 10);
             if v.is_nan() {
-                Err(Error::JsParseError)
+                Err(Error::JsParse)
             } else {
                 Ok(v as i32)
             }
@@ -51,7 +51,7 @@ mod wasm {
             match s {
                 "true" => Ok(true),
                 "false" => Ok(false),
-                _ => Err(Error::JsParseError),
+                _ => Err(Error::JsParse),
             }
         }
     }

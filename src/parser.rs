@@ -40,7 +40,7 @@ where
     P: Processor<'a, Output = O>,
 {
     all_consuming(|i: &'a str| object(i, p, 0))(i)
-        .map_err(|_| Error::ParseError)
+        .map_err(|_| Error::Parse)
         .map(|(_, value)| match value {
             Attribute::Keyword(_, out) => out,
             _ => unreachable!(),
