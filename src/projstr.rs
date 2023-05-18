@@ -5,17 +5,15 @@ use crate::builder::{parse_number, Node};
 use crate::errors::{Error, Result};
 use crate::methods::{find_method_mapping, MethodMapping};
 use crate::model::*;
-use crate::params::ParamMapping;
 
-use std::borrow::Cow;
 use std::fmt::Write;
 
 #[derive(Default)]
-pub struct ProjStringFormatter<T: Write> {
+pub struct Formatter<T: Write> {
     w: T,
 }
 
-impl<T: Write> ProjStringFormatter<T> {
+impl<T: Write> Formatter<T> {
     pub fn new(w: T) -> Self {
         Self { w }
     }
@@ -27,9 +25,6 @@ impl<T: Write> ProjStringFormatter<T> {
             Node::COMPOUNDCRS(crs) => match &crs.h_crs {
                 Horizontalcrs::Projcs(cs) => self.add_projcs(cs),
                 Horizontalcrs::Geogcs(cs) => self.add_geogcs(cs),
-                _ => Err(Error::WktError(format!(
-                    "Cannot create proj string from {node:?}"
-                ))),
             },
             _ => Err(Error::WktError(format!(
                 "Cannot create projstring from {node:?}"
@@ -59,8 +54,8 @@ impl<T: Write> ProjStringFormatter<T> {
     // Since we do not use database, output ellipsoid parameters
     // and get rid of ellipsoid name and authority
     fn add_ellipsoid(&mut self, ellps: &Ellipsoid) -> Result<()> {
-        let mut a = ellps.a;
-        let mut rf = ellps.rf;
+        let a = ellps.a;
+        let rf = ellps.rf;
         // Check units
         if let Some(unit) = &ellps.unit {
             match unit.unit_type {
@@ -181,14 +176,13 @@ impl<T: Write> ProjStringFormatter<T> {
 mod tests {
     use super::*;
     use crate::builder::Builder;
-    use crate::parser::parse;
     use crate::tests::{fixtures, setup};
 
     fn to_projstring(i: &str) -> Result<String> {
         let mut buf = String::new();
         Builder::new()
             .parse(i)
-            .and_then(|node| ProjStringFormatter::new(&mut buf).format(&node))
+            .and_then(|node| Formatter::new(&mut buf).format(&node))
             .and(Ok(buf))
     }
 

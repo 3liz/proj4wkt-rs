@@ -3,6 +3,8 @@
 //!
 //! From proj library: https://github.com/OSGeo/PROJ  (/src/iso19111/operation/parammappings)
 //!
+#![allow(dead_code)]
+
 use crate::consts::parameters;
 use crate::model::UnitType;
 

@@ -48,7 +48,7 @@ impl<'a> Processor<'a> for Builder {
     type Err = Error;
     type Output = Node<'a>;
 
-    fn process<I>(&self, key: &'a str, depth: usize, attrs: I) -> Result<Self::Output, Self::Err>
+    fn process<I>(&self, key: &'a str, _depth: usize, attrs: I) -> Result<Self::Output, Self::Err>
     where
         I: Iterator<Item = Attribute<'a, Self::Output>>,
     {

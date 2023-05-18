@@ -1,6 +1,7 @@
 //!
 //! WKT2/ISO 19111 names and codes
 //!
+#![allow(dead_code)]
 
 pub struct Wkt2Const {
     pub name: &'static str,
@@ -72,9 +73,10 @@ pub mod methods {
     define!(POPULAR_VISUALISATION_PSEUDO_MERCATOR,  "Popular Visualisation Pseudo Mercator",    "1024");
     define!(LAMBERT_AZIMUTHAL_EQUAL_AREA_SPHERICAL, "Lambert Azimuthal Equal Area (Spherical)", "1027");
     define!(LAMBERT_CONIC_CONFORMAL_2SP_MICHIGAN,   "Lambert Conic Conformal (2SP Michigan)",   "1051");
+
     define!(LAMBERT_CONIC_CONFORMAL_1SP,            "Lambert Conic Conformal (1SP)",            "9801");
-    define!(LAMBERT_CONIC_CONFORMAL_2SP_BELGIUM,    "Lambert Conic Conformal (2SP Belgium)",    "9803");
     define!(LAMBERT_CONIC_CONFORMAL_2SP,            "Lambert Conic Conformal (2SP)",            "9802");
+    define!(LAMBERT_CONIC_CONFORMAL_2SP_BELGIUM,    "Lambert Conic Conformal (2SP Belgium)",    "9803");
     define!(MERCATOR_VARIANT_A,                     "Mercator (variant A)",                     "9804");
     define!(MERCATOR_VARIANT_B,                     "Mercator (variant B)",                     "9805");
     define!(TRANSVERSE_MERCATOR,                    "Transverse Mercator"                   ,   "9807");

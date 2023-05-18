@@ -26,14 +26,6 @@ pub enum Attribute<'a, T> {
     Keyword(&'a str, T),
 }
 
-impl<'a, T> Attribute<'a, T> {
-    pub fn as_str(&self) -> &'a str {
-        match self {
-            Self::Quoted(s) | Self::Number(s) | Self::Keyword(s, _) | Self::Label(s) => s,
-        }
-    }
-}
-
 pub trait Processor<'a> {
     type Err: Debug;
     type Output;

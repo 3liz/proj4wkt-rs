@@ -60,7 +60,6 @@ macro_rules! method {
 }
 
 mod parameters {
-    use super::*;
     use crate::params::{self, ParamMapping};
 
     pub const NAT_ORIGIN: [&ParamMapping; 4] = [

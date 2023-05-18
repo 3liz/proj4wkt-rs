@@ -13,6 +13,9 @@ mod parse;
 mod parser;
 mod projstr;
 
+pub use builder::Builder;
+pub use projstr::Formatter;
+
 #[cfg(target_arch = "wasm32")]
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
@@ -37,6 +40,10 @@ mod log {
         __warn__ as warn,
     };
 }
+
+// Include wasm entry point for wasm32-unknown-unknown
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+mod wasm;
 
 #[cfg(test)]
 mod tests;
