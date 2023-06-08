@@ -22,7 +22,7 @@ var fixtures = [
 
 
 fixtures.forEach(function(item) {
-        let res = Wkt.to_proj(item.src);
+        let res = Wkt.toProjstring(item.src);
         console.assert(res === item.expect);
         console.log(`${item.name}...Ok`);
 });

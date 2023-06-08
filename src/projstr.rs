@@ -1,23 +1,58 @@
 //!
-//! Output to projstring
+//! Format WKT CRS syntactic tree
+//! to projstring
 //!
 use crate::builder::{parse_number, Node};
 use crate::errors::{Error, Result};
 use crate::methods::{find_method_mapping, MethodMapping};
 use crate::model::*;
 
-use std::fmt::Write;
+use std::io::Write;
 
-#[derive(Default)]
+/// WKT Formatter that output to [`Write`]
+///
+/// A formatter will transform a WKT CRS syntactic
+/// tree to a proj4 string
+///
+/// Example:
+///
+/// ```
+/// # const wkt_string: &str = concat!(
+/// #    r#"PROJCS["NAD83 / Massachusetts Mainland",GEOGCS["NAD83","#,
+/// #    r#"DATUM["North_American_Datum_1983",SPHEROID["GRS 1980",6378137,298.257222101,"#,
+/// #    r#"AUTHORITY["EPSG","7019"]],AUTHORITY["EPSG","6269"]],PRIMEM["Greenwich",0,"#,
+/// #    r#"AUTHORITY["EPSG","8901"]],UNIT["degree",0.01745329251994328,"#,
+/// #    r#"AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4269"]],UNIT["metre",1,"#,
+/// #    r#"AUTHORITY["EPSG","9001"]],PROJECTION["Lambert_Conformal_Conic_2SP"],"#,
+/// #    r#"PARAMETER["standard_parallel_1",42.68333333333333],"#,
+/// #    r#"PARAMETER["standard_parallel_2",41.71666666666667],"#,
+/// #    r#"PARAMETER["latitude_of_origin", -41],PARAMETER["central_meridian",-71.5],"#,
+/// #    r#"PARAMETER["false_easting",200000],PARAMETER["false_northing",750000],"#,
+/// #   r#"AUTHORITY["EPSG","26986"],AXIS["X",EAST],AXIS["Y",NORTH]]"#,
+/// # );
+/// /// Format a WKT CRS str to a String
+/// use proj4wkt::{Builder, Formatter};
+///
+/// let mut buf = String::new();
+/// Builder::new()
+///    .parse(wkt_string)
+///    .and_then(|node| Formatter::new(unsafe { buf.as_mut_vec() }).format(&node))
+///    .unwrap()
+/// ```
+///
+
 pub struct Formatter<T: Write> {
     w: T,
 }
 
 impl<T: Write> Formatter<T> {
+    /// Create a new Formatter
     pub fn new(w: T) -> Self {
         Self { w }
     }
 
+    /// Format a `Processor` root node output to
+    /// a proj4 string
     pub fn format(&mut self, node: &Node) -> Result<()> {
         match node {
             Node::GEOGCRS(cs) => self.add_geogcs(cs),
@@ -32,8 +67,13 @@ impl<T: Write> Formatter<T> {
         }
     }
 
+    #[inline]
+    fn write_str(&mut self, s: &str) -> std::io::Result<usize> {
+        self.w.write(s.as_bytes())
+    }
+
     fn add_geogcs(&mut self, geogcs: &Geogcs) -> Result<()> {
-        self.w.write_str("+proj=longlat")?;
+        self.write_str("+proj=longlat")?;
         self.add_datum(&geogcs.datum)
     }
 
@@ -41,9 +81,9 @@ impl<T: Write> Formatter<T> {
         self.add_ellipsoid(&datum.ellipsoid)?;
         if datum.to_wgs84.is_empty() {
             // Assume WGS84 or GRS80 compatible
-            self.w.write_str(" +towgs84=0,0,0,0,0,0,0")?;
+            self.write_str(" +towgs84=0,0,0,0,0,0,0")?;
         } else {
-            self.w.write_str(" +towgs84=")?;
+            self.write_str(" +towgs84=")?;
             datum.to_wgs84.iter().try_fold("", |sep, n| {
                 write!(self.w, "{sep}{n}").map_err(Error::from).and(Ok(","))
             })?;
@@ -161,10 +201,12 @@ impl<T: Write> Formatter<T> {
                 if unit.factor != 1.0 {
                     write!(self.w, " +to_meter={}", unit.factor)?;
                 } else {
-                    self.w.write_str(" +units=m")?;
+                    self.write_str(" +units=m")?;
                 }
             }
-            None => self.w.write_str(" +units=m")?,
+            None => {
+                self.write_str(" +units=m")?;
+            }
         }
 
         Ok(())
@@ -184,16 +226,16 @@ mod tests {
         let mut buf = String::new();
         Builder::new()
             .parse(i)
-            .and_then(|node| Formatter::new(&mut buf).format(&node))
+            .and_then(|node| Formatter::new(unsafe { buf.as_mut_vec() }).format(&node))
             .and(Ok(buf))
     }
 
     #[test]
     fn convert_projcs_nad83() {
         setup();
-        let wkt = to_projstring(fixtures::WKT_PROJCS_NAD83).unwrap();
+        let projstr = to_projstring(fixtures::WKT_PROJCS_NAD83).unwrap();
         assert_eq!(
-            wkt,
+            projstr,
             concat!(
                 "+proj=lcc +lat_1=42.68333333333333 +lat_2=41.71666666666667",
                 " +lat_0=-41 +lon_0=-71.5 +x_0=200000 +y_0=750000 +units=m +a=6378137",

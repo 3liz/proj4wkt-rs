@@ -11,12 +11,8 @@ pub enum Error {
     Wkt(Cow<'static, str>),
     #[error("JS parse error")]
     JsParse,
-    #[error("IO error")]
-    Io(#[from] std::io::Error),
-    #[error("UTF8 error")]
-    Utf8(#[from] std::str::Utf8Error),
     #[error("Format error")]
-    Fmt(#[from] std::fmt::Error),
+    Fmt(#[from] std::io::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;

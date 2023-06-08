@@ -1,5 +1,8 @@
 //!
-//! Parser/Tokenizer
+//! Generic, grammar free WKT parser implementation
+//!
+//! The parser does not perform allocation and generates
+//! tokens that reference str slices of the original input
 //!
 use nom::{
     branch::alt,
@@ -17,24 +20,44 @@ use crate::log;
 
 use std::fmt::Debug;
 
-/// Literal attribute
+/// Parsed WKT attributes
 #[derive(Debug, PartialEq)]
 pub enum Attribute<'a, T> {
+    /// A quoted string
     Quoted(&'a str),
+    /// A number
     Number(&'a str),
+    /// A label
     Label(&'a str),
+    /// A WKT keyword with associated
+    /// processor output
     Keyword(&'a str, T),
 }
 
+/// A recursive token generator processor
+///
+/// A `Processor` implements the grammar and produce the syntactic tree from
+/// parsed attributes
 pub trait Processor<'a> {
     type Err: Debug;
     type Output;
 
+    /// Process a WKT node with key `key` and childs attributs `attrs`.
+    ///
+    /// Attributes are lazily parsed during iteration by calling
+    /// `process` recursively
+    ///
+    /// Note that the `attrs` iterator must be totally consummed otherwise and not
+    /// be called after completion or it will panic due to `nom` implementation details.
     fn process<I>(&self, key: &'a str, depth: usize, attrs: I) -> Result<Self::Output, Self::Err>
     where
         I: Iterator<Item = Attribute<'a, Self::Output>>;
 }
 
+/// Parse WKT string
+///
+/// Parse a WKT string by applying a [`Processor`]
+/// to WKT nodes
 pub fn parse<'a, P, O>(i: &'a str, p: &P) -> Result<O>
 where
     P: Processor<'a, Output = O>,
@@ -65,6 +88,7 @@ fn quoted_string<'a>(i: &'a str) -> IResult<&str, &str> {
     )(i)
 }
 
+// Number
 fn number(i: &str) -> IResult<&str, &str> {
     alt((recognize_float, recognize(digit1)))(i)
 }
@@ -201,7 +225,7 @@ mod tests {
         fn process<I>(
             &self,
             key: &'a str,
-            depth: usize,
+            _depth: usize,
             attrs: I,
         ) -> Result<Self::Output, Self::Err>
         where

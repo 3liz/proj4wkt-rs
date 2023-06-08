@@ -6,6 +6,16 @@ rust-version = "1.66"
 description = "Parse WKT to Proj strings"
 readme = "./README.md"
 keywords = ["gis", "proj", "projection", "geography", "geospatial"]
+authors = ["David Marteau <dmarteau@3liz.com>"]
+license = "MIT OR Apache-2.0"
+homepage = "https://github.com/3liz/proj4wkt/"
+repository = "https://github.com/3liz/proj4wkt/"
+documentation = "https://docs.rs/proj4wkt/"
+exclude = [
+    "js/*",
+    "Makefile.toml",
+    "index.html",
+]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -39,3 +49,4 @@ js-sys = "0.3"
 web-sys = { version = "0.3", features = ["console"] }
 wee_alloc = "0.4"
 console_log = "1.0"
+

@@ -7,6 +7,8 @@ Support both WKT1 and WKT2 formats.
 This is a companion crate for `proj4rs`: because of this conversions are limited
 to projection supported by `proj4rs`. As more projection will be supported in proj4rs, more conversions will be supported in `proj4wt.
 
+Documentation on [doc.rs](https://docs.rs/proj4wkt/)
+
 ## Compiling for WASM
 
 Install [wasm-pack](https://rustwasm.github.io/wasm-pack/book/)

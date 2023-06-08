@@ -2,7 +2,6 @@
 //!  Tests
 //!
 use crate::builder::{Builder, Node};
-use crate::errors::{Error, Result};
 use crate::model::*;
 
 use env_logger;

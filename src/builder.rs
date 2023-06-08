@@ -3,9 +3,9 @@
 //!
 //! ## Specifications
 //!
-//! * WKT CRS standards: https://www.ogc.org/standard/wkt-crs/
-//! * WKT2015 specs: https://docs.ogc.org/is/12-063r5/12-063r5.html
-//! * WKT2019 specs: https://docs.ogc.org/is/18-010r7/18-010r7.html
+//! * [WKT CRS standards](https://www.ogc.org/standard/wkt-crs/)
+//! * [WKT2015 specs](https://docs.ogc.org/is/12-063r5/12-063r5.html)
+//! * [WKT2019 specs](https://docs.ogc.org/is/18-010r7/18-010r7.html)
 //!
 //!
 use crate::errors::{Error, Result};
@@ -31,14 +31,21 @@ pub enum Node<'a> {
     OTHER(&'a str),
 }
 
+/// A WKT CRS builder
+///
+/// A builder implement the WKT CRS grammar and create a syntactic
+/// representation of the WKT.
+///
 #[derive(Debug, Default)]
 pub struct Builder;
 
 impl Builder {
+    /// Create a new Builder
     pub fn new() -> Self {
         Builder::default()
     }
 
+    /// Parse a WKT string and return the root Node
     pub fn parse<'a>(&self, s: &'a str) -> Result<Node<'a>> {
         parse(s, self)
     }
@@ -313,13 +320,13 @@ impl Builder {
     ) -> Result<Unit<'a>> {
         let mut name = None;
         let mut factor = None;
-        let mut authority = None;
+        let mut _authority = None;
 
         for (i, a) in attrs.enumerate() {
             match a {
                 Attribute::Quoted(s) if i == 0 => name = Some(s),
                 Attribute::Number(s) if i == 1 => factor = Some(parse_number(s)?),
-                Attribute::Keyword(_, Node::AUTHORITY(auth)) => authority = Some(auth),
+                Attribute::Keyword(_, Node::AUTHORITY(auth)) => _authority = Some(auth),
                 _ => (),
             }
         }
