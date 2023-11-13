@@ -42,7 +42,7 @@ pub struct Builder;
 impl Builder {
     /// Create a new Builder
     pub fn new() -> Self {
-        Builder::default()
+        Builder
     }
 
     /// Parse a WKT string and return the root Node
@@ -125,7 +125,7 @@ impl Builder {
             });
         }
 
-        if let Some(mut u) = unit.as_mut() {
+        if let Some(u) = unit.as_mut() {
             match u.unit_type {
                 // Projcs unit should be linear
                 UnitType::Unknown => u.unit_type = UnitType::Linear,
@@ -249,7 +249,7 @@ impl Builder {
             }
         }
 
-        if let Some(mut u) = unit.as_mut() {
+        if let Some(u) = unit.as_mut() {
             match u.unit_type {
                 // Geogcs unit should be angular
                 UnitType::Unknown => u.unit_type = UnitType::Angular,
