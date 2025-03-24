@@ -51,7 +51,7 @@ mod projstr;
 
 pub mod parser;
 
-pub use builder::Builder;
+pub use builder::{Builder, Node};
 pub use projstr::Formatter;
 
 use errors::Result;
