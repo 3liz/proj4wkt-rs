@@ -40,7 +40,6 @@
 //! );
 //! ```
 //!
-mod builder;
 mod consts;
 mod errors;
 mod methods;
@@ -50,8 +49,9 @@ mod parse;
 mod projstr;
 
 pub mod parser;
+pub mod builder;
 
-pub use builder::{Builder, Node};
+pub use builder::Builder;
 pub use projstr::Formatter;
 
 use errors::Result;
