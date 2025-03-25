@@ -65,10 +65,6 @@ pub fn wkt_to_projstring(i: &str) -> Result<String> {
         .and(Ok(buf))
 }
 
-#[cfg(target_arch = "wasm32")]
-#[global_allocator]
-static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
-
 // log for logging (optional).
 #[cfg(feature = "logging")]
 use log;
