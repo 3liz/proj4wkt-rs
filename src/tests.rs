@@ -30,6 +30,19 @@ pub mod fixtures {
         r#"PARAMETER["false_easting",200000],PARAMETER["false_northing",750000],"#,
         r#"AUTHORITY["EPSG","26986"],AXIS["X",EAST],AXIS["Y",NORTH]]"#,
     );
+
+    pub const WKT_GEOGCS_WGS84: &str = r#"
+        GEOGCS["WGS 84",
+            DATUM["WGS_1984",
+                SPHEROID["WGS 84",6378137,298.257223563,
+                    AUTHORITY["EPSG","7030"]],
+                AUTHORITY["EPSG","6326"]],
+            PRIMEM["Greenwich",0,
+                AUTHORITY["EPSG","8901"]],
+            UNIT["degree",0.0174532925199433,
+                AUTHORITY["EPSG","9122"]],
+            AUTHORITY["EPSG","4326"]
+        ]"#;
 }
 
 #[test]
@@ -129,6 +142,26 @@ fn build_wgs84() {
 }
 
 #[test]
+fn parse_wgs84_wkt() {
+    setup();
+    let r = Builder::new()
+        .parse(fixtures::WKT_GEOGCS_WGS84)
+        .expect("Failed to parse WGS84 WKT");
+    if let Node::GEOGCRS(geogcrs) = &r {
+        assert_eq!(geogcrs.name, "WGS 84");
+        assert_eq!(
+            geogcrs.authority,
+            Some(Authority {
+                name: "EPSG",
+                code: "4326",
+            })
+        );
+    } else {
+        panic!("Expected GEOGCRS node");
+    }
+}
+
+#[test]
 fn build_nad83() {
     setup();
     let r = Builder::new().parse(fixtures::WKT_PROJCS_NAD83).unwrap();
@@ -154,6 +187,7 @@ fn build_nad83() {
                     factor: 0.01745329251994328,
                     unit_type: UnitType::Angular,
                 }),
+                authority: None,
             },
             projection: Projection {
                 name: "Unknown",
