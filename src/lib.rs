@@ -48,8 +48,8 @@ mod params;
 mod parse;
 mod projstr;
 
-pub mod parser;
 pub mod builder;
+pub mod parser;
 
 pub use builder::Builder;
 pub use projstr::Formatter;

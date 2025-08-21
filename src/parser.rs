@@ -12,7 +12,7 @@ use nom::{
     multi::{fold_many0, many0_count},
     number::complete::recognize_float,
     sequence::{delimited, pair, preceded, terminated},
-    IResult,
+    IResult, Parser,
 };
 
 use crate::errors::{Error, Result};
@@ -62,7 +62,8 @@ pub fn parse<'a, P, O>(i: &'a str, p: &P) -> Result<O>
 where
     P: Processor<'a, Output = O>,
 {
-    all_consuming(|i: &'a str| object(i, p, 0))(i)
+    all_consuming(|i: &'a str| object(i, p, 0))
+        .parse(i)
         .map_err(|_| Error::Parse)
         .map(|(_, value)| match value {
             Attribute::Keyword(_, out) => out,
@@ -70,8 +71,8 @@ where
         })
 }
 
-// Single quote delimited string
-fn quoted_string<'a>(i: &'a str) -> IResult<&str, &str> {
+// Double quote delimited string
+fn quoted_string<'a>(i: &'a str) -> IResult<&'a str, &'a str> {
     delimited(
         char('"'),
         |s: &'a str| {
@@ -82,27 +83,30 @@ fn quoted_string<'a>(i: &'a str) -> IResult<&str, &str> {
                     |n, item: &str| n + item.len(),
                 ),
                 |len| &s[..len],
-            )(s)
+            )
+            .parse(s)
         },
         char('"'),
-    )(i)
+    )
+    .parse(i)
 }
 
 // Number
 fn number(i: &str) -> IResult<&str, &str> {
-    alt((recognize_float, recognize(digit1)))(i)
+    alt((recognize_float, recognize(digit1))).parse(i)
 }
 
 fn keyword(i: &str) -> IResult<&str, &str> {
     recognize(pair(
         alt((alpha1, tag("_"))),
         many0_count(alt((alphanumeric1, tag("_")))),
-    ))(i)
+    ))
+    .parse(i)
 }
 
 fn log_failure<E: Debug, T>(_err: E) -> IResult<&'static str, T> {
     log::error!("Wkt failure {_err:?}");
-    cut(fail)("")
+    cut(fail()).parse("")
 }
 
 // Process object attribute
@@ -110,17 +114,19 @@ fn object<'a, P, O>(i: &'a str, p: &P, depth: usize) -> IResult<&'a str, Attribu
 where
     P: Processor<'a, Output = O>,
 {
-    terminated(keyword, trim_left(char('[')))(i.trim_start()).and_then(|(rest, key)| {
-        attribute_list(rest, p, depth, key).and_then(|(rest, node)| {
-            match cut(trim_left(char(']')))(rest) {
-                Ok((rest, _)) => Ok((rest, node)),
-                Err(err) => {
-                    log::error!("Missing closing delimiter for {key}");
-                    Err(err)
+    terminated(keyword, trim_left(char('[')))
+        .parse(i.trim_start())
+        .and_then(|(rest, key)| {
+            attribute_list(rest, p, depth, key).and_then(|(rest, node)| {
+                match cut(trim_left(char(']'))).parse(rest) {
+                    Ok((rest, _)) => Ok((rest, node)),
+                    Err(err) => {
+                        log::error!("Missing closing delimiter for {key}");
+                        Err(err)
+                    }
                 }
-            }
+            })
         })
-    })
 }
 
 // Parse attributes list
@@ -163,9 +169,9 @@ where
 {
     let i = i.trim_start();
     object(i, p, depth + 1)
-        .or_else(|_| map(quoted_string, |s| Attribute::Quoted(s))(i))
-        .or_else(|_| map(number, |n| Attribute::Number(n))(i))
-        .or_else(|_| map(keyword, |l| Attribute::Label(l))(i))
+        .or_else(|_| map(quoted_string, |s| Attribute::Quoted(s)).parse(i))
+        .or_else(|_| map(number, |n| Attribute::Number(n)).parse(i))
+        .or_else(|_| map(keyword, |l| Attribute::Label(l)).parse(i))
 }
 
 // Trim whitespaces
@@ -174,10 +180,10 @@ pub(super) fn trim_left<
     'a,
     O,
     E: nom::error::ParseError<&'a str>,
-    F: nom::Parser<&'a str, O, E>,
+    F: nom::Parser<&'a str, Output = O, Error = E>,
 >(
     f: F,
-) -> impl FnMut(&'a str) -> IResult<&str, O, E> {
+) -> impl nom::Parser<&'a str, Output = O, Error = E> {
     preceded(multispace0, f)
 }
 

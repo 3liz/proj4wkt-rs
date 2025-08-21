@@ -40,7 +40,6 @@ use std::io::Write;
 ///    .unwrap()
 /// ```
 ///
-
 pub struct Formatter<T: Write> {
     w: T,
 }
