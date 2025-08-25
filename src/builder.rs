@@ -236,6 +236,7 @@ impl Builder {
         let mut name = None;
         let mut datum = None;
         let mut unit = None;
+        let mut authority = None;
 
         for (i, a) in attrs.enumerate() {
             match a {
@@ -243,6 +244,7 @@ impl Builder {
                 Attribute::Keyword(_, n) => match n {
                     Node::DATUM(d) => datum = Some(d),
                     Node::UNIT(u) => unit = Some(u),
+                    Node::AUTHORITY(a) => authority = Some(a),
                     _ => (),
                 },
                 _ => (),
@@ -265,6 +267,7 @@ impl Builder {
             name: name.unwrap_or(""),
             datum: datum.ok_or(Error::Wkt("Missing DATUM for geodetic crs".into()))?,
             unit,
+            authority,
         })
     }
 

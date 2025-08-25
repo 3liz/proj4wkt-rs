@@ -6,6 +6,7 @@ pub struct Geogcs<'a> {
     pub name: &'a str,
     pub datum: Datum<'a>,
     pub unit: Option<Unit<'a>>,
+    pub authority: Option<Authority<'a>>,
 }
 
 #[derive(Debug, PartialEq)]
