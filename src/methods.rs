@@ -1,9 +1,11 @@
 //!
 //! Method mapping
 //!
-use crate::consts::methods;
-use crate::model::Parameter;
-use crate::params::ParamMapping;
+use crate::builder::parse_number;
+use crate::consts::{methods, Wkt2Const};
+use crate::errors::Result;
+use crate::model::{Parameter, Projection, Unit};
+use crate::params::{self, ParamMapping};
 
 pub struct MethodMapping {
     wkt2_name: &'static str,
@@ -21,6 +23,11 @@ impl MethodMapping {
 
     pub fn proj_aux(&self) -> &'static str {
         self.proj_aux
+    }
+
+    /// Check if this is the mapping for `method`
+    pub fn is(&self, method: &Wkt2Const) -> bool {
+        self.wkt2_name == method.name && self.epsg_code == method.code
     }
 
     /// Look up for mapped proj parameters
@@ -174,6 +181,8 @@ mod parameters {
     ];
 }
 
+const WKT1_POLAR_STEREOGRAPHIC: &str = "Polar_Stereographic";
+
 pub const METHOD_MAPPINGS: [MethodMapping; 22] = [
     method! {TRANSVERSE_MERCATOR, "Transverse_Mercator", "tmerc", "", &parameters::NAT_ORIGIN_SCALE_K},
     method! {TRANSVERSE_MERCATOR_SOUTH_ORIENTATED, "Transverse_Mercator_South_Orientated", "tmerc", "+axis=wsu",
@@ -198,29 +207,64 @@ pub const METHOD_MAPPINGS: [MethodMapping; 22] = [
     method! {PROJ_WKT2_NAME_WAGNER_V, "Wagner_V", "wag5", "", &parameters::LONG_NAT_ORIGIN},
     method! {OBLIQUE_STEREOGRAPHIC, "Oblique_Stereographic", "sterea", "",
     &parameters::OBLIQUE_STEREO},
-    method! {POLAR_STEREOGRAPHIC_VARIANT_A, "Polar_Stereographic", "stere", "", &parameters::OBLIQUE_STEREO},
-    method! {POLAR_STEREOGRAPHIC_VARIANT_B, "Polar_Stereographic", "stere", "", &parameters::POLAR_STEREO},
+    method! {POLAR_STEREOGRAPHIC_VARIANT_A, WKT1_POLAR_STEREOGRAPHIC, "stere", "", &parameters::OBLIQUE_STEREO},
+    method! {POLAR_STEREOGRAPHIC_VARIANT_B, WKT1_POLAR_STEREOGRAPHIC, "stere", "", &parameters::POLAR_STEREO},
     method! {PROJ_WKT2_NAME_METHOD_STEREOGRAPHIC, "Stereographic", "stere", "", &parameters::OBLIQUE_STEREO},
     method! {PROJ_WKT2_NAME_METHOD_ROBINSON, "Robinson", "robin", "", &parameters::LONG_NAT_ORIGIN_LONGITUDE_CENTRE},
     method! {PROJ_WKT2_NAME_METHOD_SINUSOIDAL, "Sinusoidal", "sinu", "", &parameters::LONG_NAT_ORIGIN_LONGITUDE_CENTRE},
     method! {EPSG_METHOD_KROVAK_NORTH_ORIENTED, "Krovak", "krovak", "", &parameters::KROVAK_PARAMETERS},
 ];
 
-use crate::model::Method;
-
-/// Retrieve method mappinf from model
+/// Retrieve method mapping from model
 ///
 /// Trust EPSG code first if available, otherwise check name
-pub fn find_method_mapping(me: &Method) -> Option<&'static MethodMapping> {
+pub fn find_method_mapping(
+    projection: &Projection,
+    geod_unit: Option<&Unit>,
+) -> Result<Option<&'static MethodMapping>> {
+    let me = &projection.method;
     if me.name.is_empty() {
-        None
+        Ok(None)
     } else if let Some(auth) = &me.authority {
-        METHOD_MAPPINGS
+        Ok(METHOD_MAPPINGS
             .iter()
-            .find(|m| auth.name == "EPSG" && m.epsg_code == auth.code)
+            .find(|m| auth.name == "EPSG" && m.epsg_code == auth.code))
+    } else if me.name.eq_ignore_ascii_case(WKT1_POLAR_STEREOGRAPHIC) {
+        wkt1_polar_stereographic(&projection.parameters, geod_unit).map(Some)
     } else {
-        METHOD_MAPPINGS.iter().find(|m| {
+        Ok(METHOD_MAPPINGS.iter().find(|m| {
             m.wkt2_name.eq_ignore_ascii_case(me.name) || m.wkt1_name.eq_ignore_ascii_case(me.name)
-        })
+        }))
     }
+}
+
+/// WKT1 'Polar_Stereographic' is used for both variants:
+/// the latitude of origin is the pole for variant A, otherwise
+/// it is the latitude of true scale of variant B.
+fn wkt1_polar_stereographic(
+    params: &[Parameter],
+    geod_unit: Option<&Unit>,
+) -> Result<&'static MethodMapping> {
+    let lat_origin = params.iter().find(|p| {
+        p.name
+            .eq_ignore_ascii_case(params::LAT_STD_PARALLEL.wkt1_name)
+    });
+
+    let variant = match lat_origin {
+        Some(p) => {
+            let lat = parse_number(p.value)?;
+            let lat = match p.unit.as_ref().or(geod_unit) {
+                Some(unit) => lat * unit.factor,
+                None => lat.to_radians(),
+            };
+            if (lat.abs() - std::f64::consts::FRAC_PI_2).abs() < 1.0e-10 {
+                &methods::POLAR_STEREOGRAPHIC_VARIANT_A
+            } else {
+                &methods::POLAR_STEREOGRAPHIC_VARIANT_B
+            }
+        }
+        None => &methods::POLAR_STEREOGRAPHIC_VARIANT_A,
+    };
+
+    Ok(METHOD_MAPPINGS.iter().find(|m| m.is(variant)).unwrap())
 }

@@ -467,3 +467,62 @@ fn convert_lcc_1sp_lat_0() {
         );
     }
 }
+
+#[test]
+fn convert_polar_stereographic() {
+    setup();
+    const GEOGCS: &str = concat!(
+        r#"GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563]],"#,
+        r#"PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433]]"#,
+    );
+    const ELLPS: &str = " +a=6378137 +rf=298.257223563 +towgs84=0,0,0,0,0,0,0";
+
+    // WKT1 latitude of origin is the latitude of true scale (variant B)
+    let wkt = format!(
+        concat!(
+            r#"PROJCS["WGS 84 / Antarctic Polar Stereographic",{},"#,
+            r#"PROJECTION["Polar_Stereographic"],PARAMETER["latitude_of_origin",-71],"#,
+            r#"PARAMETER["central_meridian",0],PARAMETER["false_easting",0],"#,
+            r#"PARAMETER["false_northing",0],UNIT["metre",1]]"#,
+        ),
+        GEOGCS
+    );
+    assert_eq!(
+        crate::wkt_to_projstring(&wkt).unwrap(),
+        format!("+proj=stere +lat_0=-90 +lat_ts=-71 +lon_0=0 +x_0=0 +y_0=0 +units=m{ELLPS}"),
+    );
+
+    // WKT1 latitude of origin is the pole (variant A)
+    let wkt = format!(
+        concat!(
+            r#"PROJCS["WGS 84 / UPS North (N,E)",{},"#,
+            r#"PROJECTION["Polar_Stereographic"],PARAMETER["latitude_of_origin",90],"#,
+            r#"PARAMETER["central_meridian",0],PARAMETER["scale_factor",0.994],"#,
+            r#"PARAMETER["false_easting",2000000],PARAMETER["false_northing",2000000],"#,
+            r#"UNIT["metre",1]]"#,
+        ),
+        GEOGCS
+    );
+    assert_eq!(
+        crate::wkt_to_projstring(&wkt).unwrap(),
+        format!(
+            "+proj=stere +lat_0=90 +lon_0=0 +k=0.994 +x_0=2000000 +y_0=2000000 +units=m{ELLPS}"
+        ),
+    );
+
+    // WKT2 variant B
+    let wkt = concat!(
+        r#"PROJCRS["WGS 84 / Antarctic Polar Stereographic",BASEGEOGCRS["WGS 84","#,
+        r#"DATUM["World Geodetic System 1984",ELLIPSOID["WGS 84",6378137,298.257223563]]],"#,
+        r#"CONVERSION["Antarctic Polar Stereographic","#,
+        r#"METHOD["Polar Stereographic (variant B)",ID["EPSG",9829]],"#,
+        r#"PARAMETER["Latitude of standard parallel",-71,ID["EPSG",8832]],"#,
+        r#"PARAMETER["Longitude of origin",0,ID["EPSG",8833]],"#,
+        r#"PARAMETER["False easting",0,ID["EPSG",8806]],"#,
+        r#"PARAMETER["False northing",0,ID["EPSG",8807]]]]"#,
+    );
+    assert_eq!(
+        crate::wkt_to_projstring(wkt).unwrap(),
+        format!("+proj=stere +lat_0=-90 +lat_ts=-71 +lon_0=0 +x_0=0 +y_0=0 +units=m{ELLPS}"),
+    );
+}

@@ -3,9 +3,11 @@
 //! to projstring
 //!
 use crate::builder::{parse_number, Node};
+use crate::consts::methods;
 use crate::errors::{Error, Result};
 use crate::methods::{find_method_mapping, MethodMapping};
 use crate::model::*;
+use crate::params;
 
 use std::io::Write;
 
@@ -123,13 +125,18 @@ impl<T: Write> Formatter<T> {
 
     fn add_projcs(&mut self, projcs: &Projcs) -> Result<()> {
         // Check the projection
-        if let Some(mapping) = find_method_mapping(&projcs.projection.method) {
+        let axis_unit = projcs.unit.as_ref();
+        let geod_unit = projcs.geogcs.unit.as_ref();
+
+        if let Some(mapping) = find_method_mapping(&projcs.projection, geod_unit)? {
             write!(self.w, "+proj={}", mapping.proj_name())?;
 
-            // TODO check how to get relevant axis units on wkt2
-
-            let axis_unit = projcs.unit.as_ref();
-            let geod_unit = projcs.geogcs.unit.as_ref();
+            // Polar Stereographic variant B: the pole is
+            // given by the sign of the latitude of true scale
+            if mapping.is(&methods::POLAR_STEREOGRAPHIC_VARIANT_B) {
+                let lat_0 = polar_stereographic_lat_0(&projcs.projection.parameters, mapping)?;
+                write!(self.w, " +lat_0={lat_0}")?;
+            }
 
             self.add_parameters(&projcs.projection.parameters, mapping, axis_unit, geod_unit)?;
             self.add_datum(&projcs.geogcs.datum)?;
@@ -207,6 +214,18 @@ impl<T: Write> Formatter<T> {
         }
 
         Ok(())
+    }
+}
+
+fn polar_stereographic_lat_0(params: &[Parameter], mapping: &MethodMapping) -> Result<i32> {
+    let lat_ts = params.iter().find(|p| {
+        mapping
+            .find_proj_params(p)
+            .any(|pm| pm.proj_name == params::LAT_STD_PARALLEL.proj_name)
+    });
+    match lat_ts {
+        Some(p) if parse_number(p.value)? < 0.0 => Ok(-90),
+        _ => Ok(90),
     }
 }
 
