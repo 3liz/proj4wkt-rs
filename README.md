@@ -9,6 +9,11 @@ to projection supported by `proj4rs`. As more projection will be supported in pr
 
 Documentation on [doc.rs](https://docs.rs/proj4wkt/)
 
+### Limitations
+
+PROJ add known shift datum from its database for some datums even when the WKT has no TOWGS84;
+because proj4wkt does not use database these corrections are not available.
+
 ## Compiling for WASM
 
 Install [wasm-pack](https://rustwasm.github.io/wasm-pack/book/)

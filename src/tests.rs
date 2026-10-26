@@ -515,7 +515,6 @@ fn skip_parameters_without_proj_name() {
         concat!(
             "+proj=krovak +lat_0=49.5 +lon_0=24.83333333333333 +alpha=30.28813972222222",
             " +k=0.9999 +x_0=0 +y_0=0 +units=m +a=6377397.155 +rf=299.1528128",
-            " +towgs84=0,0,0,0,0,0,0",
         )
     );
 
@@ -563,7 +562,7 @@ fn convert_ellipsoid_unit() {
             format!(r#"GEOGCS["test",DATUM["test",{ellps}],UNIT["degree",0.0174532925199433]]"#);
         assert_eq!(
             crate::wkt_to_projstring(&wkt).unwrap(),
-            "+proj=longlat +a=6378350.8704 +rf=294.26 +towgs84=0,0,0,0,0,0,0",
+            "+proj=longlat +a=6378350.8704 +rf=294.26",
             "{ellps}"
         );
     }
@@ -773,7 +772,7 @@ fn convert_esri_wkt1() {
         // EPSG:27572, Lambert_Conformal_Conic with 1 standard parallel: LCC 1SP
         (
             r#"PROJCS["NTF_Paris_Lambert_Zone_II",GEOGCS["GCS_NTF_Paris",DATUM["Nouvelle_Triangulation_Francaise_(Paris)",SPHEROID["Clarke_1880_IGN",6378249.2,293.466021293627]],PRIMEM["Paris",2.33722917],UNIT["Grad",0.0157079632679489]],PROJECTION["Lambert_Conformal_Conic"],PARAMETER["False_Easting",600000.0],PARAMETER["False_Northing",2200000.0],PARAMETER["Central_Meridian",0.0],PARAMETER["Standard_Parallel_1",52.0],PARAMETER["Scale_Factor",0.99987742],PARAMETER["Latitude_Of_Origin",52.0],UNIT["Meter",1.0]]"#,
-            "+proj=lcc +x_0=600000.0 +y_0=2200000.0 +lon_0=0 +k_0=0.99987742 +lat_1=46.799999999999805 +lat_0=46.799999999999805 +units=m +a=6378249.2 +rf=293.466021293627 +towgs84=0,0,0,0,0,0,0 +pm=2.33722917",
+            "+proj=lcc +x_0=600000.0 +y_0=2200000.0 +lon_0=0 +k_0=0.99987742 +lat_1=46.799999999999805 +lat_0=46.799999999999805 +units=m +a=6378249.2 +rf=293.466021293627 +pm=2.33722917",
         ),
         // EPSG:3031, Stereographic_South_Pole: Polar Stereographic variant B
         (
@@ -843,10 +842,7 @@ fn convert_sphere() {
                 AUTHORITY["EPSG","3408"]]"#;
     assert_eq!(
         crate::wkt_to_projstring(epsg_3408).unwrap(),
-        concat!(
-            "+proj=laea +lat_0=90 +lon_0=0 +x_0=0 +y_0=0 +units=m +R=6371228",
-            " +towgs84=0,0,0,0,0,0,0",
-        ),
+        "+proj=laea +lat_0=90 +lon_0=0 +x_0=0 +y_0=0 +units=m +R=6371228",
     );
 
     let epsg_4047 = r#"
@@ -870,7 +866,7 @@ fn convert_sphere() {
                 ID["EPSG",4047]]"#;
     assert_eq!(
         crate::wkt_to_projstring(epsg_4047).unwrap(),
-        "+proj=longlat +R=6371007 +towgs84=0,0,0,0,0,0,0",
+        "+proj=longlat +R=6371007",
     );
 
     // Radius is converted to meter
@@ -880,7 +876,7 @@ fn convert_sphere() {
     );
     assert_eq!(
         crate::wkt_to_projstring(feet).unwrap(),
-        "+proj=longlat +R=6096000 +towgs84=0,0,0,0,0,0,0",
+        "+proj=longlat +R=6096000",
     );
 }
 
@@ -940,7 +936,7 @@ fn convert_krovak() {
             concat!(
                 "+proj=krovak +lat_0=49.5 +lon_0=42.5 +alpha=30.2881397527778 +k=0.9999",
                 " +x_0=0 +y_0=0 +units=m +a=6377397.155 +rf=299.1528128",
-                " +towgs84=0,0,0,0,0,0,0 +pm=-17.6666666666667 +axis=swu",
+                " +pm=-17.6666666666667 +axis=swu",
             ),
         ),
         // ESRI: X_Scale, Y_Scale, XY_Plane_Rotation of 1, 1, 0
@@ -949,7 +945,7 @@ fn convert_krovak() {
             concat!(
                 "+proj=krovak +x_0=0.0 +y_0=0.0 +k=0.9999 +alpha=30.2881397527778",
                 " +lon_0=42.5 +lat_0=49.5 +units=m +a=6377397.155 +rf=299.1528128",
-                " +towgs84=0,0,0,0,0,0,0 +pm=-17.6666666666667 +axis=swu",
+                " +pm=-17.6666666666667 +axis=swu",
             ),
         ),
         // ESRI: any other values are north orientated
@@ -958,7 +954,7 @@ fn convert_krovak() {
             concat!(
                 "+proj=krovak +x_0=0.0 +y_0=0.0 +k=0.9999 +alpha=30.28813975277778",
                 " +lon_0=24.83333333333333 +lat_0=49.5 +units=m +a=6377397.155",
-                " +rf=299.1528128 +towgs84=0,0,0,0,0,0,0",
+                " +rf=299.1528128",
             ),
         ),
     ] {
@@ -993,7 +989,7 @@ fn convert_krovak() {
     let projstr = concat!(
         "+proj=krovak +lat_0=49.5 +lon_0=42.5 +alpha=30.2881397527778 +k=0.9999",
         " +x_0=0 +y_0=0 +units=m +a=6377397.155 +rf=299.1528128",
-        " +towgs84=0,0,0,0,0,0,0 +pm=-17.6666666666667",
+        " +pm=-17.6666666666667",
     );
     assert_eq!(crate::wkt_to_projstring(wkt1).unwrap(), projstr);
 
@@ -1056,7 +1052,7 @@ fn convert_parameter_unit() {
         concat!(
             "+proj=lcc +lat_1=46.799999999999805 +lat_0=46.799999999999805 +lon_0=0",
             " +k_0=0.99987742 +x_0=600000 +y_0=2200000 +units=m +a=6378249.2",
-            " +rf=293.466021293627 +towgs84=0,0,0,0,0,0,0 +pm=2.3372291699999908",
+            " +rf=293.466021293627 +pm=2.3372291699999908",
         ),
     );
 
@@ -1089,4 +1085,78 @@ fn convert_parameter_unit() {
         BASE
     );
     assert!(crate::wkt_to_projstring(&wkt).is_err());
+}
+
+#[test]
+fn convert_datum_without_towgs84() {
+    setup();
+    // (projinfo, PROJ 9.4.0)
+    // OSGB36 (Airy ellipsoid): the datum shift is unknown
+    let epsg_27700 = r#"
+        PROJCS["OSGB36 / British National Grid",
+            GEOGCS["OSGB36",
+                DATUM["Ordnance_Survey_of_Great_Britain_1936",
+                    SPHEROID["Airy 1830",6377563.396,299.3249646,
+                        AUTHORITY["EPSG","7001"]],
+                    AUTHORITY["EPSG","6277"]],
+                PRIMEM["Greenwich",0,
+                    AUTHORITY["EPSG","8901"]],
+                UNIT["degree",0.0174532925199433,
+                    AUTHORITY["EPSG","9122"]],
+                AUTHORITY["EPSG","4277"]],
+            PROJECTION["Transverse_Mercator"],
+            PARAMETER["latitude_of_origin",49],
+            PARAMETER["central_meridian",-2],
+            PARAMETER["scale_factor",0.9996012717],
+            PARAMETER["false_easting",400000],
+            PARAMETER["false_northing",-100000],
+            UNIT["metre",1,
+                AUTHORITY["EPSG","9001"]],
+            AXIS["Easting",EAST],
+            AXIS["Northing",NORTH],
+            AUTHORITY["EPSG","27700"]]"#;
+    assert_eq!(
+        crate::wkt_to_projstring(epsg_27700).unwrap(),
+        concat!(
+            "+proj=tmerc +lat_0=49 +lon_0=-2 +k=0.9996012717 +x_0=400000",
+            " +y_0=-100000 +units=m +a=6377563.396 +rf=299.3249646",
+        ),
+    );
+
+    // ETRS89 (GRS80 ellipsoid) is compatible with WGS84
+    let epsg_4258 = r#"
+        GEOGCRS["ETRS89",
+            ENSEMBLE["European Terrestrial Reference System 1989 ensemble",
+                MEMBER["European Terrestrial Reference Frame 1989"],
+                MEMBER["European Terrestrial Reference Frame 1990"],
+                MEMBER["European Terrestrial Reference Frame 1991"],
+                MEMBER["European Terrestrial Reference Frame 1992"],
+                MEMBER["European Terrestrial Reference Frame 1993"],
+                MEMBER["European Terrestrial Reference Frame 1994"],
+                MEMBER["European Terrestrial Reference Frame 1996"],
+                MEMBER["European Terrestrial Reference Frame 1997"],
+                MEMBER["European Terrestrial Reference Frame 2000"],
+                MEMBER["European Terrestrial Reference Frame 2005"],
+                MEMBER["European Terrestrial Reference Frame 2014"],
+                ELLIPSOID["GRS 1980",6378137,298.257222101,
+                    LENGTHUNIT["metre",1]],
+                ENSEMBLEACCURACY[0.1]],
+            PRIMEM["Greenwich",0,
+                ANGLEUNIT["degree",0.0174532925199433]],
+            CS[ellipsoidal,2],
+                AXIS["geodetic latitude (Lat)",north,
+                    ORDER[1],
+                    ANGLEUNIT["degree",0.0174532925199433]],
+                AXIS["geodetic longitude (Lon)",east,
+                    ORDER[2],
+                    ANGLEUNIT["degree",0.0174532925199433]],
+            USAGE[
+                SCOPE["Spatial referencing."],
+                AREA["Europe - onshore and offshore: Albania; Andorra; Austria; Belgium; Bosnia and Herzegovina; Bulgaria; Croatia; Cyprus; Czechia; Denmark; Estonia; Faroe Islands; Finland; France; Germany; Gibraltar; Greece; Hungary; Ireland; Italy; Kosovo; Latvia; Liechtenstein; Lithuania; Luxembourg; Malta; Moldova; Monaco; Montenegro; Netherlands; North Macedonia; Norway including Svalbard and Jan Mayen; Poland; Portugal; Romania; San Marino; Serbia; Slovakia; Slovenia; Spain; Sweden; Switzerland; United Kingdom (UK) including Channel Islands and Isle of Man; Vatican City State."],
+                BBOX[32.88,-16.1,84.73,40.18]],
+            ID["EPSG",4258]]"#;
+    assert_eq!(
+        crate::wkt_to_projstring(epsg_4258).unwrap(),
+        "+proj=longlat +a=6378137 +rf=298.257222101 +towgs84=0,0,0,0,0,0,0",
+    );
 }

@@ -9,8 +9,8 @@
 //! to projection supported by `proj4rs`. As more projection will be supported
 //! in `proj4rs`, more conversions will be supported in `proj4wt`.
 //!
-//! This crate may be built as WASM package
 //!
+//! This crate may be built as WASM package/
 //! Example:
 //! ```
 //! use proj4wkt::wkt_to_projstring;
@@ -38,7 +38,13 @@
 //!         " +rf=298.257222101 +towgs84=0,0,0,0,0,0,0",
 //!     )
 //! );
+//! 
 //! ```
+//!
+//! ## Limitations
+//!
+//! PROJ add known shift datum from its database for some datums even when the WKT has no TOWGS84;
+//! because proj4wkt does not use database these corrections are not available.
 //!
 mod consts;
 mod errors;

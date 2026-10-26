@@ -106,14 +106,13 @@ impl<T: Write> Formatter<T> {
 
     fn add_datum(&mut self, datum: &Datum) -> Result<()> {
         self.add_ellipsoid(&datum.ellipsoid)?;
-        if datum.to_wgs84.is_empty() {
-            // Assume WGS84 or GRS80 compatible
-            self.write_str(" +towgs84=0,0,0,0,0,0,0")?;
-        } else {
+        if !datum.to_wgs84.is_empty() {
             self.write_str(" +towgs84=")?;
             datum.to_wgs84.iter().try_fold("", |sep, n| {
                 write!(self.w, "{sep}{n}").map_err(Error::from).and(Ok(","))
             })?;
+        } else if is_wgs84_compatible(&datum.ellipsoid)? {
+            self.write_str(" +towgs84=0,0,0,0,0,0,0")?;
         }
         Ok(())
     }
@@ -256,6 +255,19 @@ impl<T: Write> Formatter<T> {
 
         Ok(())
     }
+}
+
+// Datum without TOWGS84 is assumed compatible with WGS84 only
+// for the WGS84 and GRS80 ellipsoids (as PROJ does for WGS84,
+// NAD83 or ETRS89): otherwise the datum shift is unknown.
+fn is_wgs84_compatible(ellps: &Ellipsoid) -> Result<bool> {
+    let factor = ellps.unit.as_ref().map_or(1.0, |unit| unit.factor);
+    let a = parse_number(ellps.a)? * factor;
+    let rf = parse_number(ellps.rf)?;
+    Ok((a - 6378137.0).abs() < 1.0e-3
+        && [298.257223563, 298.257222101]
+            .iter()
+            .any(|wgs84_rf| (rf - wgs84_rf).abs() < 1.0e-6))
 }
 
 fn polar_stereographic_lat_0(params: &[Parameter], mapping: &MethodMapping) -> Result<i32> {
