@@ -187,7 +187,10 @@ fn build_nad83() {
                     factor: 0.01745329251994328,
                     unit_type: UnitType::Angular,
                 }),
-                authority: None,
+                authority: Some(Authority {
+                    name: "EPSG",
+                    code: "4269",
+                }),
             },
             projection: Projection {
                 name: "Unknown",

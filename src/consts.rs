@@ -72,6 +72,7 @@ pub mod methods {
 
     define!(POPULAR_VISUALISATION_PSEUDO_MERCATOR,  "Popular Visualisation Pseudo Mercator",    "1024");
     define!(LAMBERT_AZIMUTHAL_EQUAL_AREA_SPHERICAL, "Lambert Azimuthal Equal Area (Spherical)", "1027");
+    define!(EPSG_METHOD_KROVAK_NORTH_ORIENTED,      "Krovak (North Orientated)",                "1041");
     define!(LAMBERT_CONIC_CONFORMAL_2SP_MICHIGAN,   "Lambert Conic Conformal (2SP Michigan)",   "1051");
 
     define!(LAMBERT_CONIC_CONFORMAL_1SP,            "Lambert Conic Conformal (1SP)",            "9801");
@@ -91,4 +92,6 @@ pub mod methods {
     define!(PROJ_WKT2_NAME_WAGNER_IV,            "Wagner IV",     "");
     define!(PROJ_WKT2_NAME_WAGNER_V,             "Wagner V",      "");
     define!(PROJ_WKT2_NAME_METHOD_STEREOGRAPHIC, "Stereographic", "");
+    define!(PROJ_WKT2_NAME_METHOD_ROBINSON,      "Robinson",      "");
+    define!(PROJ_WKT2_NAME_METHOD_SINUSOIDAL,    "Sinusoidal",    "");
 }

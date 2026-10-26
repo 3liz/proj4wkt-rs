@@ -155,9 +155,25 @@ mod parameters {
         &params::FALSE_EASTING,
         &params::FALSE_NORTHING,
     ];
+
+    pub const LONG_NAT_ORIGIN_LONGITUDE_CENTRE: [&ParamMapping; 3] = [
+        &params::LONG_NAT_LONG_CENTER,
+        &params::FALSE_EASTING,
+        &params::FALSE_NORTHING,
+    ];
+
+    pub const KROVAK_PARAMETERS: [&ParamMapping; 7] = [
+        &params::LAT_CENTRE_LAT_CENTER,
+        &params::LONG_CENTRE_LONG_CENTER,
+        &params::COLATITUDE_CONE_AXIS,
+        &params::LATITUDE_PSEUDO_STD_PARALLEL,
+        &params::SCALE_FACTOR_PSEUDO_STD_PARALLEL,
+        &params::FALSE_EASTING,
+        &params::FALSE_NORTHING,
+    ];
 }
 
-pub const METHOD_MAPPINGS: [MethodMapping; 19] = [
+pub const METHOD_MAPPINGS: [MethodMapping; 22] = [
     method! {TRANSVERSE_MERCATOR, "Transverse_Mercator", "tmerc", "", &parameters::NAT_ORIGIN_SCALE_K},
     method! {TRANSVERSE_MERCATOR_SOUTH_ORIENTATED, "Transverse_Mercator_South_Orientated", "tmerc", "+axis=wsu",
     &parameters::NAT_ORIGIN_SCALE_K},
@@ -184,6 +200,10 @@ pub const METHOD_MAPPINGS: [MethodMapping; 19] = [
     method! {POLAR_STEREOGRAPHIC_VARIANT_A, "Polar_Stereographic", "stere", "", &parameters::OBLIQUE_STEREO},
     method! {POLAR_STEREOGRAPHIC_VARIANT_B, "Polar_Stereographic", "stere", "", &parameters::POLAR_STEREO},
     method! {PROJ_WKT2_NAME_METHOD_STEREOGRAPHIC, "Stereographic", "stere", "", &parameters::OBLIQUE_STEREO},
+    method! {PROJ_WKT2_NAME_METHOD_ROBINSON, "Robinson", "robin", "", &parameters::LONG_NAT_ORIGIN_LONGITUDE_CENTRE},
+    method! {PROJ_WKT2_NAME_METHOD_SINUSOIDAL, "Sinusoidal", "sinu", "", &parameters::LONG_NAT_ORIGIN_LONGITUDE_CENTRE},
+    method! {EPSG_METHOD_KROVAK_NORTH_ORIENTED, "Krovak", "krovak", "", &parameters::KROVAK_PARAMETERS},
+
 ];
 
 use crate::model::Method;
