@@ -1229,3 +1229,82 @@ fn convert_degree_unit() {
         );
     }
 }
+
+#[test]
+fn convert_non_epsg_authority() {
+    setup();
+    // EPSG:2154, WKT2 2019 (projinfo, PROJ 9.4.0)
+    const WKT: &str = r#"
+        PROJCRS["RGF93 v1 / Lambert-93",
+            BASEGEOGCRS["RGF93 v1",
+                DATUM["Reseau Geodesique Francais 1993 v1",
+                    ELLIPSOID["GRS 1980",6378137,298.257222101,
+                        LENGTHUNIT["metre",1]]],
+                PRIMEM["Greenwich",0,
+                    ANGLEUNIT["degree",0.0174532925199433]],
+                ID["EPSG",4171]],
+            CONVERSION["Lambert-93",
+                METHOD["Lambert Conic Conformal (2SP)",
+                    ID["EPSG",9802]],
+                PARAMETER["Latitude of false origin",46.5,
+                    ANGLEUNIT["degree",0.0174532925199433],
+                    ID["EPSG",8821]],
+                PARAMETER["Longitude of false origin",3,
+                    ANGLEUNIT["degree",0.0174532925199433],
+                    ID["EPSG",8822]],
+                PARAMETER["Latitude of 1st standard parallel",49,
+                    ANGLEUNIT["degree",0.0174532925199433],
+                    ID["EPSG",8823]],
+                PARAMETER["Latitude of 2nd standard parallel",44,
+                    ANGLEUNIT["degree",0.0174532925199433],
+                    ID["EPSG",8824]],
+                PARAMETER["Easting at false origin",700000,
+                    LENGTHUNIT["metre",1],
+                    ID["EPSG",8826]],
+                PARAMETER["Northing at false origin",6600000,
+                    LENGTHUNIT["metre",1],
+                    ID["EPSG",8827]]],
+            CS[Cartesian,2],
+                AXIS["easting (X)",east,
+                    ORDER[1],
+                    LENGTHUNIT["metre",1]],
+                AXIS["northing (Y)",north,
+                    ORDER[2],
+                    LENGTHUNIT["metre",1]],
+            USAGE[
+                SCOPE["Engineering survey, topographic mapping."],
+                AREA["France - onshore and offshore, mainland and Corsica (France métropolitaine including Corsica)."],
+                BBOX[41.15,-9.86,51.56,10.38]],
+            ID["EPSG",2154]]"#;
+    const PROJSTR: &str = concat!(
+        "+proj=lcc +lat_0=46.5 +lon_0=3 +lat_1=49 +lat_2=44 +x_0=700000",
+        " +y_0=6600000 +units=m +a=6378137 +rf=298.257222101 +towgs84=0,0,0,0,0,0,0",
+    );
+    assert_eq!(crate::wkt_to_projstring(WKT).unwrap(), PROJSTR);
+
+    // Method with another authority, or with an unknown EPSG code,
+    // is found by name
+    for id in [r#"ID["ESRI",43020]"#, r#"ID["EPSG",99999]"#] {
+        let wkt = WKT.replace(r#"ID["EPSG",9802]"#, id);
+        assert_eq!(crate::wkt_to_projstring(&wkt).unwrap(), PROJSTR, "{id}");
+    }
+
+    // Parameters with another authority, or with unknown EPSG codes,
+    // are found by name
+    for authority in [r#"ID["IGNF","#, r#"ID["EPSG",99"#] {
+        let wkt = ["8821", "8822", "8823", "8824", "8826", "8827"]
+            .iter()
+            .fold(WKT.to_string(), |wkt, code| {
+                wkt.replace(
+                    &format!(r#"ID["EPSG",{code}]"#),
+                    &format!("{authority}{code}]"),
+                )
+            });
+        assert!(!wkt.contains(r#"ID["EPSG",88"#));
+        assert_eq!(
+            crate::wkt_to_projstring(&wkt).unwrap(),
+            PROJSTR,
+            "{authority}"
+        );
+    }
+}

@@ -4,7 +4,7 @@
 use crate::builder::parse_number;
 use crate::consts::{Wkt2Const, methods};
 use crate::errors::{Error, Result};
-use crate::model::{Parameter, Projcs, Unit};
+use crate::model::{Authority, Parameter, Projcs, Unit};
 use crate::params::{self, ParamMapping};
 
 pub struct MethodMapping {
@@ -38,11 +38,15 @@ impl MethodMapping {
         &'a self,
         p: &'a Parameter<'a>,
     ) -> impl Iterator<Item = &'a ParamMapping> + 'a {
+        // Trust EPSG code if known, otherwise check name
+        let code = epsg_code(&p.authority)
+            .filter(|code| self.param_mapping.iter().any(|pp| pp.epsg_code == *code));
+
         self.param_mapping.iter().copied().filter(move |pp| {
             !p.name.is_empty()
                 && !pp.proj_name.is_empty()
-                && match &p.authority {
-                    Some(auth) => auth.name == "EPSG" && pp.epsg_code == auth.code,
+                && match code {
+                    Some(code) => pp.epsg_code == code,
                     None => {
                         pp.wkt2_name.eq_ignore_ascii_case(p.name)
                             || pp.wkt1_name.eq_ignore_ascii_case(p.name)
@@ -223,18 +227,26 @@ pub const METHOD_MAPPINGS: [MethodMapping; 23] = [
     method! {EPSG_METHOD_KROVAK_NORTH_ORIENTED, WKT1_KROVAK, "krovak", "", &parameters::KROVAK_PARAMETERS},
 ];
 
+/// EPSG code of an authority
+fn epsg_code<'a>(authority: &Option<Authority<'a>>) -> Option<&'a str> {
+    authority
+        .as_ref()
+        .filter(|auth| auth.name.eq_ignore_ascii_case("EPSG"))
+        .map(|auth| auth.code)
+}
+
 /// Retrieve method mapping from model
 ///
-/// Trust EPSG code first if available, otherwise check name
+/// Trust EPSG code first if known, otherwise check name
 pub fn find_method_mapping(projcs: &Projcs) -> Result<Option<&'static MethodMapping>> {
     let projection = &projcs.projection;
     let me = &projection.method;
     if me.name.is_empty() {
         Ok(None)
-    } else if let Some(auth) = &me.authority {
-        Ok(METHOD_MAPPINGS
-            .iter()
-            .find(|m| auth.name == "EPSG" && m.epsg_code == auth.code))
+    } else if let Some(m) = epsg_code(&me.authority)
+        .and_then(|code| METHOD_MAPPINGS.iter().find(|m| m.epsg_code == code))
+    {
+        Ok(Some(m))
     } else if me.name.eq_ignore_ascii_case(WKT1_POLAR_STEREOGRAPHIC) {
         wkt1_polar_stereographic(&projection.parameters, projcs.geogcs.unit.as_ref()).map(Some)
     } else if me.name.eq_ignore_ascii_case(WKT1_KROVAK) {
