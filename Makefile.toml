@@ -10,19 +10,41 @@ dependencies = [
 command = "cargo"
 args = ["build"]
 
-[tasks.wasm]
-script = [
-    "wasm-pack build --target web --no-default-features --features=proj4js-compat"
-]
-
-[tasks.wasm_debug]
-script = [
-    "wasm-pack build --target web --no-default-features --features=logging --features=proj4js-compat"
-]
-
-[tasks.wasm_strict]
-script = [
-    "wasm-pack build --target web --no-default-features --features=wasm_strict --features=proj4js-compat"
+[tasks."wasm.build"]
+description = "Build wasm module (web target)" 
+command = "wasm-pack"
+args = [
+    "build",
+    "--release",
+    "--target=web",
+    "--no-default-features",
+    "--features=logging",
 ]
 
 
+[tasks."wasm.debug"]
+description = "Build wasm module (debug web target)" 
+command = "wasm-pack"
+args = [
+    "build",
+    "--release",
+    "--target=web",
+    "--no-default-features",
+    "--features=logging",
+]
+
+
+
+[tasks."wasm.package"]
+description = "Package wasm web module"
+env = { "PROJWKT_PACKAGE" = "${CARGO_MAKE_CRATE_FS_NAME}-${CARGO_MAKE_CRATE_VERSION}.tgz" }
+dependencies = [
+    "wasm.build"
+]
+command = "tar"
+args = [
+    "-czvf",
+    "${PROJWKT_PACKAGE}",
+    "--transform=s/pkg/${CARGO_MAKE_CRATE_FS_NAME}/",
+    "pkg",
+]

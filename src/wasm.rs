@@ -12,7 +12,13 @@ pub fn main() {
     console_log::init_with_level(log::Level::Trace).unwrap();
 }
 
+// XXX Deprecated
 #[wasm_bindgen(js_name = toProjstring)]
 pub fn to_projstring(src: &str) -> Result<String, JsError> {
+    wkt_to_projstring(src).map_err(JsError::from)
+}
+
+#[wasm_bindgen(js_namespace = projwkt, js_name = toProjstring)]
+pub fn to_projstring_ns(src: &str) -> Result<String, JsError> {
     wkt_to_projstring(src).map_err(JsError::from)
 }

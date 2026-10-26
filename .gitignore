@@ -2,3 +2,5 @@
 /Cargo.lock
 
 /fixtures
+
+*.tgz

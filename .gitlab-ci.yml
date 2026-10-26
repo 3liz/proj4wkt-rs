@@ -1,0 +1,31 @@
+stages:
+  - build
+  - package
+
+build-web:
+  image: ${REGISTRY_URL}/factory-ci-runner:rust-noble
+  tags:
+  - factory-plain
+  stage: build
+  script:
+  - cargo make wasm.package
+  - echo "PACKAGE_WEB=`ls -1 proj4wkt-*.tgz`" > build.env
+  artifacts:
+    reports:
+      dotenv: build.env
+    paths:
+    - proj4wkt-*.tgz
+
+
+package:
+  image: ${REGISTRY_URL}/factory-ci-runner:fabric-ci
+  tags:
+  - fabric
+  stage: package
+  rules:
+  - if: $RELEASE_BRANCH == "true"
+  script:
+  - upload_to_packages_server ${PACKAGE_WEB} pub/web-modules/proj4wkt/
+  dependencies:
+  - build-web
+
