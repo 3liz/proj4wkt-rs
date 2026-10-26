@@ -400,3 +400,17 @@ fn skip_parameters_without_proj_name() {
         )
     );
 }
+
+#[test]
+fn parse_trailing_whitespaces() {
+    setup();
+    // .prj files and pasted WKT usually end with a newline
+    for trailing in ["\n", "\r\n", " ", "\t", "  \n\n"] {
+        let wkt = format!("{}{trailing}", fixtures::WKT_GEOGCS_WGS84);
+        let r = Builder::new().parse(&wkt);
+        assert!(
+            matches!(r, Ok(Node::GEOGCRS(_))),
+            "Trailing {trailing:?}: {r:?}"
+        );
+    }
+}

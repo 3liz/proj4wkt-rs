@@ -63,7 +63,7 @@ where
     P: Processor<'a, Output = O>,
 {
     all_consuming(|i: &'a str| object(i, p, 0))
-        .parse(i)
+        .parse(i.trim())
         .map_err(|_| Error::Parse)
         .map(|(_, value)| match value {
             Attribute::Keyword(_, out) => out,
