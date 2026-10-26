@@ -442,6 +442,13 @@ impl Builder {
             }
         }
 
+        if let Some(u) = unit.as_mut() {
+            // Ellipsoid unit should be linear
+            if u.unit_type == UnitType::Unknown {
+                u.unit_type = UnitType::Linear;
+            }
+        }
+
         Ok(Ellipsoid {
             name: name.ok_or(Error::Wkt("Missing AUTHORITY name".into()))?,
             a: semi_major.ok_or(Error::Wkt("Invalid ELLIPSOID semi-major axis".into()))?,

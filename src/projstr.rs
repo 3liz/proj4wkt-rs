@@ -100,9 +100,9 @@ impl<T: Write> Formatter<T> {
             match unit.unit_type {
                 UnitType::Linear => {
                     if unit.factor != 1.0 {
-                        // Convert to meter
+                        // Convert to meter, inverse flattening
+                        // is unitless
                         let a = parse_number(a)? * unit.factor;
-                        let rf = parse_number(rf)? * unit.factor;
                         write!(self.w, " +a={a} +rf={rf}")?;
                     } else {
                         write!(self.w, " +a={a} +rf={rf}")?;

@@ -414,3 +414,21 @@ fn parse_trailing_whitespaces() {
         );
     }
 }
+
+#[test]
+fn convert_ellipsoid_unit() {
+    setup();
+    // Only the semi-major axis is converted, inverse flattening is unitless
+    for ellps in [
+        r#"SPHEROID["Clarke 1866 (ft)",20926348,294.26,UNIT["foot",0.3048]]"#,
+        r#"ELLIPSOID["Clarke 1866 (ft)",20926348,294.26,LENGTHUNIT["foot",0.3048]]"#,
+    ] {
+        let wkt =
+            format!(r#"GEOGCS["test",DATUM["test",{ellps}],UNIT["degree",0.0174532925199433]]"#);
+        assert_eq!(
+            crate::wkt_to_projstring(&wkt).unwrap(),
+            "+proj=longlat +a=6378350.8704 +rf=294.26 +towgs84=0,0,0,0,0,0,0",
+            "{ellps}"
+        );
+    }
+}
