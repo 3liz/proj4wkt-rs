@@ -102,6 +102,7 @@ impl Builder {
         let mut method = None;
         let mut unit = None;
         let mut axis_unit = None;
+        let mut axis_directions = vec![];
         let mut authority = None;
 
         let mut parameters: Vec<Parameter<'a>> = vec![];
@@ -117,9 +118,12 @@ impl Builder {
                     Node::UNIT(u) => unit = Some(u),
                     Node::METHOD(m) => method = Some(m),
                     Node::PARAMETER(p) => parameters.push(p),
-                    // WKT2: keep the first axis unit
-                    Node::AXIS(Axis { unit: Some(u), .. }) if axis_unit.is_none() => {
-                        axis_unit = Some(u)
+                    Node::AXIS(axis) => {
+                        axis_directions.push(axis.direction);
+                        // WKT2: keep the first axis unit
+                        if axis_unit.is_none() {
+                            axis_unit = axis.unit;
+                        }
                     }
                     _ => (),
                 },
@@ -163,6 +167,7 @@ impl Builder {
             geogcs: geogcs.ok_or(Error::Wkt("Missing PROJCRS geodetic crs".into()))?,
             projection: projection.ok_or(Error::Wkt("Missing PROJCS projection".into()))?,
             unit,
+            axis_directions,
         })
     }
 
@@ -545,11 +550,13 @@ impl Builder {
 
     fn axis<'a>(&self, attrs: impl Iterator<Item = Attribute<'a, Node<'a>>>) -> Result<Axis<'a>> {
         let mut name = None;
+        let mut direction = None;
         let mut unit = None;
 
         for (i, a) in attrs.enumerate() {
             match a {
                 Attribute::Quoted(s) if i == 0 => name = Some(s),
+                Attribute::Label(s) if i == 1 => direction = Some(s),
                 Attribute::Keyword(_, Node::UNIT(u)) => unit = Some(u),
                 _ => (),
             }
@@ -557,6 +564,7 @@ impl Builder {
 
         Ok(Axis {
             name: name.ok_or(Error::Wkt("Missing AXIS name".into()))?,
+            direction: direction.ok_or(Error::Wkt("Missing AXIS direction".into()))?,
             unit,
         })
     }

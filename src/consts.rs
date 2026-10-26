@@ -82,6 +82,7 @@ pub mod methods {
     define!(MERCATOR_VARIANT_B,                     "Mercator (variant B)",                     "9805");
     define!(TRANSVERSE_MERCATOR,                    "Transverse Mercator"                   ,   "9807");
     define!(TRANSVERSE_MERCATOR_SOUTH_ORIENTATED,   "Transverse Mercator (South Orientated)",   "9808");
+    define!(KROVAK,                                 "Krovak",                                   "9819");
     define!(OBLIQUE_STEREOGRAPHIC,                  "Oblique Stereographic",                    "9809");
     define!(POLAR_STEREOGRAPHIC_VARIANT_A,          "Polar Stereographic (variant A)",          "9810");
     define!(ALBERS_EQUAL_AREA,                      "Albers Equal Area",                        "9822");

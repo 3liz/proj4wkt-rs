@@ -4,7 +4,7 @@
 use crate::builder::parse_number;
 use crate::consts::{Wkt2Const, methods};
 use crate::errors::{Error, Result};
-use crate::model::{Parameter, Projection, Unit};
+use crate::model::{Parameter, Projcs, Unit};
 use crate::params::{self, ParamMapping};
 
 pub struct MethodMapping {
@@ -188,8 +188,9 @@ mod parameters {
 }
 
 const WKT1_POLAR_STEREOGRAPHIC: &str = "Polar_Stereographic";
+const WKT1_KROVAK: &str = "Krovak";
 
-pub const METHOD_MAPPINGS: [MethodMapping; 22] = [
+pub const METHOD_MAPPINGS: [MethodMapping; 23] = [
     method! {TRANSVERSE_MERCATOR, "Transverse_Mercator", "tmerc", "", &parameters::NAT_ORIGIN_SCALE_K},
     method! {TRANSVERSE_MERCATOR_SOUTH_ORIENTATED, "Transverse_Mercator_South_Orientated", "tmerc", "+axis=wsu",
     &parameters::NAT_ORIGIN_SCALE_K},
@@ -218,16 +219,15 @@ pub const METHOD_MAPPINGS: [MethodMapping; 22] = [
     method! {PROJ_WKT2_NAME_METHOD_STEREOGRAPHIC, "Stereographic", "stere", "", &parameters::OBLIQUE_STEREO},
     method! {PROJ_WKT2_NAME_METHOD_ROBINSON, "Robinson", "robin", "", &parameters::LONG_NAT_ORIGIN_LONGITUDE_CENTRE},
     method! {PROJ_WKT2_NAME_METHOD_SINUSOIDAL, "Sinusoidal", "sinu", "", &parameters::LONG_NAT_ORIGIN_LONGITUDE_CENTRE},
-    method! {EPSG_METHOD_KROVAK_NORTH_ORIENTED, "Krovak", "krovak", "", &parameters::KROVAK_PARAMETERS},
+    method! {KROVAK, WKT1_KROVAK, "krovak", "+axis=swu", &parameters::KROVAK_PARAMETERS},
+    method! {EPSG_METHOD_KROVAK_NORTH_ORIENTED, WKT1_KROVAK, "krovak", "", &parameters::KROVAK_PARAMETERS},
 ];
 
 /// Retrieve method mapping from model
 ///
 /// Trust EPSG code first if available, otherwise check name
-pub fn find_method_mapping(
-    projection: &Projection,
-    geod_unit: Option<&Unit>,
-) -> Result<Option<&'static MethodMapping>> {
+pub fn find_method_mapping(projcs: &Projcs) -> Result<Option<&'static MethodMapping>> {
+    let projection = &projcs.projection;
     let me = &projection.method;
     if me.name.is_empty() {
         Ok(None)
@@ -236,7 +236,9 @@ pub fn find_method_mapping(
             .iter()
             .find(|m| auth.name == "EPSG" && m.epsg_code == auth.code))
     } else if me.name.eq_ignore_ascii_case(WKT1_POLAR_STEREOGRAPHIC) {
-        wkt1_polar_stereographic(&projection.parameters, geod_unit).map(Some)
+        wkt1_polar_stereographic(&projection.parameters, projcs.geogcs.unit.as_ref()).map(Some)
+    } else if me.name.eq_ignore_ascii_case(WKT1_KROVAK) {
+        krovak(&projection.parameters, &projcs.axis_directions).map(Some)
     } else if let Some(m) = METHOD_MAPPINGS.iter().find(|m| {
         m.wkt2_name.eq_ignore_ascii_case(me.name) || m.wkt1_name.eq_ignore_ascii_case(me.name)
     }) {
@@ -244,6 +246,38 @@ pub fn find_method_mapping(
     } else {
         esri_method_mapping(me.name, &projection.parameters)
     }
+}
+
+/// 'Krovak' without EPSG code may be north orientated:
+/// - ESRI WKT1 defines the orientation with 'X_Scale', 'Y_Scale'
+///   and 'XY_Plane_Rotation', any other values than the default
+///   1, 1, 0 are north orientated.
+/// - Otherwise only south-west axes are not north orientated
+///   (as in PROJ).
+fn krovak(params: &[Parameter], axis_directions: &[&str]) -> Result<&'static MethodMapping> {
+    let find_param = |name: &str| params.iter().find(|p| p.name.eq_ignore_ascii_case(name));
+    let value = |p: Option<&Parameter>, default| p.map_or(Ok(default), |p| parse_number(p.value));
+
+    let x_scale = find_param("X_Scale");
+    let y_scale = find_param("Y_Scale");
+    let rotation = find_param("XY_Plane_Rotation");
+
+    let north_orientated = if x_scale.is_some() || y_scale.is_some() || rotation.is_some() {
+        (
+            value(x_scale, 1.0)?,
+            value(y_scale, 1.0)?,
+            value(rotation, 0.0)?,
+        ) != (1.0, 1.0, 0.0)
+    } else {
+        !matches!(axis_directions, [x, y]
+            if x.eq_ignore_ascii_case("south") && y.eq_ignore_ascii_case("west"))
+    };
+
+    Ok(get_method_mapping(if north_orientated {
+        &methods::EPSG_METHOD_KROVAK_NORTH_ORIENTED
+    } else {
+        &methods::KROVAK
+    }))
 }
 
 fn get_method_mapping(method: &Wkt2Const) -> &'static MethodMapping {

@@ -147,7 +147,7 @@ impl<T: Write> Formatter<T> {
         let axis_unit = projcs.unit.as_ref();
         let geod_unit = projcs.geogcs.unit.as_ref();
 
-        if let Some(mapping) = find_method_mapping(&projcs.projection, geod_unit)? {
+        if let Some(mapping) = find_method_mapping(projcs)? {
             write!(self.w, "+proj={}", mapping.proj_name())?;
 
             // Polar Stereographic variant B: the pole is

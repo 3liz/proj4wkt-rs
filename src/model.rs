@@ -38,6 +38,7 @@ pub struct Projcs<'a> {
     pub geogcs: Geogcs<'a>,
     pub projection: Projection<'a>,
     pub unit: Option<Unit<'a>>,
+    pub axis_directions: Vec<&'a str>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -91,6 +92,7 @@ pub struct Unit<'a> {
 #[derive(Debug, PartialEq)]
 pub struct Axis<'a> {
     pub name: &'a str,
+    pub direction: &'a str,
     pub unit: Option<Unit<'a>>,
 }
 

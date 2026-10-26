@@ -412,6 +412,7 @@ fn build_nad83() {
                 factor: 1.0,
                 unit_type: UnitType::Linear,
             }),
+            axis_directions: vec!["EAST", "NORTH"],
         }),
     );
 }
@@ -880,5 +881,128 @@ fn convert_sphere() {
     assert_eq!(
         crate::wkt_to_projstring(feet).unwrap(),
         "+proj=longlat +R=6096000 +towgs84=0,0,0,0,0,0,0",
+    );
+}
+
+#[test]
+fn convert_krovak() {
+    setup();
+    // EPSG:2065 is Krovak (EPSG:9819), EPSG:5514 is Krovak (North Orientated)
+    // (projinfo, PROJ 9.4.0)
+    for (wkt, projstr) in [
+        // WKT2: method EPSG code
+        (
+            r#"
+        PROJCRS["S-JTSK (Ferro) / Krovak",
+            BASEGEOGCRS["S-JTSK (Ferro)",
+                DATUM["System of the Unified Trigonometrical Cadastral Network (Ferro)",
+                    ELLIPSOID["Bessel 1841",6377397.155,299.1528128,
+                        LENGTHUNIT["metre",1]]],
+                PRIMEM["Ferro",-17.6666666666667,
+                    ANGLEUNIT["degree",0.0174532925199433]],
+                ID["EPSG",4818]],
+            CONVERSION["Krovak",
+                METHOD["Krovak",
+                    ID["EPSG",9819]],
+                PARAMETER["Latitude of projection centre",49.5,
+                    ANGLEUNIT["degree",0.0174532925199433],
+                    ID["EPSG",8811]],
+                PARAMETER["Longitude of origin",42.5,
+                    ANGLEUNIT["degree",0.0174532925199433],
+                    ID["EPSG",8833]],
+                PARAMETER["Co-latitude of cone axis",30.2881397527778,
+                    ANGLEUNIT["degree",0.0174532925199433],
+                    ID["EPSG",1036]],
+                PARAMETER["Latitude of pseudo standard parallel",78.5,
+                    ANGLEUNIT["degree",0.0174532925199433],
+                    ID["EPSG",8818]],
+                PARAMETER["Scale factor on pseudo standard parallel",0.9999,
+                    SCALEUNIT["unity",1],
+                    ID["EPSG",8819]],
+                PARAMETER["False easting",0,
+                    LENGTHUNIT["metre",1],
+                    ID["EPSG",8806]],
+                PARAMETER["False northing",0,
+                    LENGTHUNIT["metre",1],
+                    ID["EPSG",8807]]],
+            CS[Cartesian,2],
+                AXIS["southing (X)",south,
+                    ORDER[1],
+                    LENGTHUNIT["metre",1]],
+                AXIS["westing (Y)",west,
+                    ORDER[2],
+                    LENGTHUNIT["metre",1]],
+            USAGE[
+                SCOPE["Cadastre in Czechia."],
+                AREA["Czechia; Slovakia."],
+                BBOX[47.73,12.09,51.06,22.56]],
+            ID["EPSG",2065]]"#,
+            concat!(
+                "+proj=krovak +lat_0=49.5 +lon_0=42.5 +alpha=30.2881397527778 +k=0.9999",
+                " +x_0=0 +y_0=0 +units=m +a=6377397.155 +rf=299.1528128",
+                " +towgs84=0,0,0,0,0,0,0 +pm=-17.6666666666667 +axis=swu",
+            ),
+        ),
+        // ESRI: X_Scale, Y_Scale, XY_Plane_Rotation of 1, 1, 0
+        (
+            r#"PROJCS["S-JTSK_Ferro_Krovak",GEOGCS["GCS_S_JTSK_Ferro",DATUM["System_of_the_Unified_Trigonometrical_Cadastral_Network_(Ferro)",SPHEROID["Bessel_1841",6377397.155,299.1528128]],PRIMEM["Ferro",-17.6666666666667],UNIT["Degree",0.0174532925199433]],PROJECTION["Krovak"],PARAMETER["False_Easting",0.0],PARAMETER["False_Northing",0.0],PARAMETER["Pseudo_Standard_Parallel_1",78.5],PARAMETER["Scale_Factor",0.9999],PARAMETER["Azimuth",30.2881397527778],PARAMETER["Longitude_Of_Center",42.5],PARAMETER["Latitude_Of_Center",49.5],PARAMETER["X_Scale",1.0],PARAMETER["Y_Scale",1.0],PARAMETER["XY_Plane_Rotation",0.0],UNIT["Meter",1.0]]"#,
+            concat!(
+                "+proj=krovak +x_0=0.0 +y_0=0.0 +k=0.9999 +alpha=30.2881397527778",
+                " +lon_0=42.5 +lat_0=49.5 +units=m +a=6377397.155 +rf=299.1528128",
+                " +towgs84=0,0,0,0,0,0,0 +pm=-17.6666666666667 +axis=swu",
+            ),
+        ),
+        // ESRI: any other values are north orientated
+        (
+            r#"PROJCS["S-JTSK_Krovak_East_North",GEOGCS["GCS_S_JTSK",DATUM["D_S_JTSK",SPHEROID["Bessel_1841",6377397.155,299.1528128]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433]],PROJECTION["Krovak"],PARAMETER["False_Easting",0.0],PARAMETER["False_Northing",0.0],PARAMETER["Pseudo_Standard_Parallel_1",78.5],PARAMETER["Scale_Factor",0.9999],PARAMETER["Azimuth",30.28813975277778],PARAMETER["Longitude_Of_Center",24.83333333333333],PARAMETER["Latitude_Of_Center",49.5],PARAMETER["X_Scale",-1.0],PARAMETER["Y_Scale",1.0],PARAMETER["XY_Plane_Rotation",90.0],UNIT["Meter",1.0]]"#,
+            concat!(
+                "+proj=krovak +x_0=0.0 +y_0=0.0 +k=0.9999 +alpha=30.28813975277778",
+                " +lon_0=24.83333333333333 +lat_0=49.5 +units=m +a=6377397.155",
+                " +rf=299.1528128 +towgs84=0,0,0,0,0,0,0",
+            ),
+        ),
+    ] {
+        assert_eq!(crate::wkt_to_projstring(wkt).unwrap(), projstr, "{wkt}");
+    }
+
+    // WKT1: only south-west axes are not north orientated, as in PROJ.
+    // GDAL WKT1 export of EPSG:2065 has no AXIS
+    let wkt1 = r#"
+        PROJCS["S-JTSK (Ferro) / Krovak",
+            GEOGCS["S-JTSK (Ferro)",
+                DATUM["System_of_the_Unified_Trigonometrical_Cadastral_Network_Ferro",
+                    SPHEROID["Bessel 1841",6377397.155,299.1528128,
+                        AUTHORITY["EPSG","7004"]],
+                    AUTHORITY["EPSG","6818"]],
+                PRIMEM["Ferro",-17.6666666666667,
+                    AUTHORITY["EPSG","8909"]],
+                UNIT["degree",0.0174532925199433,
+                    AUTHORITY["EPSG","9122"]],
+                AUTHORITY["EPSG","4818"]],
+            PROJECTION["Krovak"],
+            PARAMETER["latitude_of_center",49.5],
+            PARAMETER["longitude_of_center",42.5],
+            PARAMETER["azimuth",30.2881397527778],
+            PARAMETER["pseudo_standard_parallel_1",78.5],
+            PARAMETER["scale_factor",0.9999],
+            PARAMETER["false_easting",0],
+            PARAMETER["false_northing",0],
+            UNIT["metre",1,
+                AUTHORITY["EPSG","9001"]],
+            AUTHORITY["EPSG","2065"]]"#;
+    let projstr = concat!(
+        "+proj=krovak +lat_0=49.5 +lon_0=42.5 +alpha=30.2881397527778 +k=0.9999",
+        " +x_0=0 +y_0=0 +units=m +a=6377397.155 +rf=299.1528128",
+        " +towgs84=0,0,0,0,0,0,0 +pm=-17.6666666666667",
+    );
+    assert_eq!(crate::wkt_to_projstring(wkt1).unwrap(), projstr);
+
+    let wkt1 = wkt1.replace(
+        r#"AUTHORITY["EPSG","2065"]]"#,
+        r#"AXIS["X",SOUTH],AXIS["Y",WEST],AUTHORITY["EPSG","2065"]]"#,
+    );
+    assert_eq!(
+        crate::wkt_to_projstring(&wkt1).unwrap(),
+        format!("{projstr} +axis=swu")
     );
 }
