@@ -28,6 +28,7 @@ pub enum Node<'a> {
     COMPOUNDCRS(Compoundcrs<'a>),
     VERTICALCRS(Verticalcrs<'a>),
     TOWGS84(Vec<&'a str>),
+    AXIS(Axis<'a>),
     OTHER(&'a str),
 }
 
@@ -70,10 +71,13 @@ impl<'a> Processor<'a> for Builder {
             "PROJECTION" | "METHOD" => self.method(attrs).map(Node::METHOD),
             "PARAMETER" => self.parameter(attrs).map(Node::PARAMETER),
             "DATUM" | "GEODETICDATUM" | "TRF" => self.datum(attrs).map(Node::DATUM),
-            "UNIT" => self.unit(key, attrs).map(Node::UNIT),
+            "UNIT" | "ANGLEUNIT" | "SCALEUNIT" | "LENGTHUNIT" => {
+                self.unit(key, attrs).map(Node::UNIT)
+            }
             "COMPD_CS" | "COMPOUNDCRS" => self.compoundcrs(attrs).map(Node::COMPOUNDCRS),
             "VERT_CS" | "VERTCRS" | "VERTICALCRS" => self.verticalcrs(attrs).map(Node::VERTICALCRS),
             "TOWGS84" => self.towgs84(attrs).map(Node::TOWGS84),
+            "AXIS" => self.axis(attrs).map(Node::AXIS),
             _ => {
                 // Consume tokens
                 for _ in attrs {}
@@ -93,6 +97,7 @@ impl Builder {
         let mut projection = None;
         let mut method = None;
         let mut unit = None;
+        let mut axis_unit = None;
         let mut authority = None;
 
         let mut parameters: Vec<Parameter<'a>> = vec![];
@@ -108,10 +113,20 @@ impl Builder {
                     Node::UNIT(u) => unit = Some(u),
                     Node::METHOD(m) => method = Some(m),
                     Node::PARAMETER(p) => parameters.push(p),
+                    // WKT2: keep the first axis unit
+                    Node::AXIS(Axis { unit: Some(u), .. }) if axis_unit.is_none() => {
+                        axis_unit = Some(u)
+                    }
                     _ => (),
                 },
                 _ => (),
             }
+        }
+
+        // WKT2: a unit common to all axes follows the AXIS list,
+        // otherwise the unit is defined on each axis
+        if unit.is_none() {
+            unit = axis_unit;
         }
 
         // On pre WKT2 parameters for projection are at the root level
@@ -236,6 +251,7 @@ impl Builder {
         let mut name = None;
         let mut datum = None;
         let mut unit = None;
+        let mut axis_unit = None;
         let mut authority = None;
 
         for (i, a) in attrs.enumerate() {
@@ -245,10 +261,23 @@ impl Builder {
                     Node::DATUM(d) => datum = Some(d),
                     Node::UNIT(u) => unit = Some(u),
                     Node::AUTHORITY(a) => authority = Some(a),
+                    // WKT2: keep the first axis angular unit,
+                    // skip the ellipsoidal height unit of 3D crs
+                    Node::AXIS(Axis { unit: Some(u), .. })
+                        if axis_unit.is_none() && u.unit_type != UnitType::Linear =>
+                    {
+                        axis_unit = Some(u)
+                    }
                     _ => (),
                 },
                 _ => (),
             }
+        }
+
+        // WKT2: a unit common to all axes follows the AXIS list,
+        // otherwise the unit is defined on each axis
+        if unit.is_none() {
+            unit = axis_unit;
         }
 
         if let Some(u) = unit.as_mut() {
@@ -339,7 +368,7 @@ impl Builder {
             factor: factor.ok_or(Error::Wkt("Missing UNIT factor".into()))?,
             unit_type: match key {
                 "ANGLEUNIT" => UnitType::Angular,
-                "SCALUNIT" => UnitType::Scale,
+                "SCALEUNIT" => UnitType::Scale,
                 "LENGTHUNIT" => UnitType::Linear,
                 _ => UnitType::Unknown,
             },
@@ -417,6 +446,24 @@ impl Builder {
             name: name.ok_or(Error::Wkt("Missing AUTHORITY name".into()))?,
             a: semi_major.ok_or(Error::Wkt("Invalid ELLIPSOID semi-major axis".into()))?,
             rf: rf.ok_or(Error::Wkt("Invalid ELLIPSOID inverse flattening".into()))?,
+            unit,
+        })
+    }
+
+    fn axis<'a>(&self, attrs: impl Iterator<Item = Attribute<'a, Node<'a>>>) -> Result<Axis<'a>> {
+        let mut name = None;
+        let mut unit = None;
+
+        for (i, a) in attrs.enumerate() {
+            match a {
+                Attribute::Quoted(s) if i == 0 => name = Some(s),
+                Attribute::Keyword(_, Node::UNIT(u)) => unit = Some(u),
+                _ => (),
+            }
+        }
+
+        Ok(Axis {
+            name: name.ok_or(Error::Wkt("Missing AXIS name".into()))?,
             unit,
         })
     }

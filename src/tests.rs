@@ -106,6 +106,37 @@ fn build_unit() {
 }
 
 #[test]
+fn build_wkt2_units() {
+    setup();
+    for (wkt, name, factor, unit_type) in [
+        (
+            r#"ANGLEUNIT["degree",0.0174532925199433]"#,
+            "degree",
+            0.0174532925199433,
+            UnitType::Angular,
+        ),
+        (
+            r#"LENGTHUNIT["US survey foot",0.304800609601219]"#,
+            "US survey foot",
+            0.304800609601219,
+            UnitType::Linear,
+        ),
+        (r#"SCALEUNIT["unity",1]"#, "unity", 1.0, UnitType::Scale),
+    ] {
+        let r = Builder::new().parse(wkt).unwrap();
+        assert_eq!(
+            r,
+            Node::UNIT(Unit {
+                name,
+                factor,
+                unit_type,
+            }),
+            "{wkt}"
+        );
+    }
+}
+
+#[test]
 fn build_datum() {
     setup();
     let wkt = concat!(
@@ -248,4 +279,84 @@ fn build_nad83() {
             }),
         }),
     );
+}
+
+#[test]
+fn build_wkt2_projcs_axis_unit() {
+    setup();
+    let unit = Unit {
+        name: "US survey foot",
+        factor: 0.304800609601219,
+        unit_type: UnitType::Linear,
+    };
+    let crs = concat!(
+        r#"PROJCRS["NAD83 / New York Long Island (ftUS)","#,
+        r#"BASEGEOGCRS["NAD83",DATUM["North American Datum 1983","#,
+        r#"ELLIPSOID["GRS 1980",6378137,298.257222101,LENGTHUNIT["metre",1]]],"#,
+        r#"ANGLEUNIT["degree",0.0174532925199433]],"#,
+        r#"CONVERSION["SPCS83 New York Long Island zone (US Survey feet)","#,
+        r#"METHOD["Lambert Conic Conformal (2SP)",ID["EPSG",9802]],"#,
+        r#"PARAMETER["Easting at false origin",984250,"#,
+        r#"LENGTHUNIT["US survey foot",0.304800609601219],ID["EPSG",8826]]],"#,
+    );
+    // Unit defined on each axis
+    let per_axis = concat!(
+        r#"CS[Cartesian,2],"#,
+        r#"AXIS["easting (X)",east,ORDER[1],LENGTHUNIT["US survey foot",0.304800609601219]],"#,
+        r#"AXIS["northing (Y)",north,ORDER[2],LENGTHUNIT["US survey foot",0.304800609601219]]]"#,
+    );
+    // Unit common to all axes
+    let common = concat!(
+        r#"CS[Cartesian,2],AXIS["easting (X)",east],AXIS["northing (Y)",north],"#,
+        r#"LENGTHUNIT["US survey foot",0.304800609601219]]"#,
+    );
+
+    for cs in [per_axis, common] {
+        let wkt = format!("{crs}{cs}");
+        match Builder::new().parse(&wkt).unwrap() {
+            Node::PROJCRS(projcs) => assert_eq!(projcs.unit.as_ref(), Some(&unit), "{cs}"),
+            other => panic!("Expected PROJCRS node, got {other:?}"),
+        }
+
+        let projstr = crate::wkt_to_projstring(&wkt).unwrap();
+        assert!(
+            projstr.contains(" +to_meter=0.304800609601219"),
+            "{projstr}"
+        );
+    }
+}
+
+#[test]
+fn build_wkt2_geogcs_axis_unit() {
+    setup();
+    let unit = Unit {
+        name: "grad",
+        factor: 0.0157079632679489,
+        unit_type: UnitType::Angular,
+    };
+    let crs = concat!(
+        r#"GEOGCRS["NTF (Paris)",DATUM["Nouvelle Triangulation Francaise (Paris)","#,
+        r#"ELLIPSOID["Clarke 1880 (IGN)",6378249.2,293.466021293627,LENGTHUNIT["metre",1]]],"#,
+        r#"PRIMEM["Paris",2.5969213,ANGLEUNIT["grad",0.0157079632679489]],"#,
+    );
+    // Unit defined on each axis, with an ellipsoidal height axis
+    let per_axis = concat!(
+        r#"CS[ellipsoidal,3],"#,
+        r#"AXIS["geodetic latitude (Lat)",north,ORDER[1],ANGLEUNIT["grad",0.0157079632679489]],"#,
+        r#"AXIS["geodetic longitude (Lon)",east,ORDER[2],ANGLEUNIT["grad",0.0157079632679489]],"#,
+        r#"AXIS["ellipsoidal height (h)",up,ORDER[3],LENGTHUNIT["metre",1]]]"#,
+    );
+    // Unit common to all axes
+    let common = concat!(
+        r#"CS[ellipsoidal,2],AXIS["latitude",north],AXIS["longitude",east],"#,
+        r#"ANGLEUNIT["grad",0.0157079632679489]]"#,
+    );
+
+    for cs in [per_axis, common] {
+        let wkt = format!("{crs}{cs}");
+        match Builder::new().parse(&wkt).unwrap() {
+            Node::GEOGCRS(geogcs) => assert_eq!(geogcs.unit.as_ref(), Some(&unit), "{cs}"),
+            other => panic!("Expected GEOGCRS node, got {other:?}"),
+        }
+    }
 }

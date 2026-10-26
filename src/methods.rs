@@ -203,7 +203,6 @@ pub const METHOD_MAPPINGS: [MethodMapping; 22] = [
     method! {PROJ_WKT2_NAME_METHOD_ROBINSON, "Robinson", "robin", "", &parameters::LONG_NAT_ORIGIN_LONGITUDE_CENTRE},
     method! {PROJ_WKT2_NAME_METHOD_SINUSOIDAL, "Sinusoidal", "sinu", "", &parameters::LONG_NAT_ORIGIN_LONGITUDE_CENTRE},
     method! {EPSG_METHOD_KROVAK_NORTH_ORIENTED, "Krovak", "krovak", "", &parameters::KROVAK_PARAMETERS},
-
 ];
 
 use crate::model::Method;

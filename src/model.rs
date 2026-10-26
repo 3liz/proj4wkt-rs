@@ -78,6 +78,14 @@ pub struct Unit<'a> {
     pub unit_type: UnitType,
 }
 
+// WKT2 axis unit may be defined per axis
+// see https://docs.ogc.org/is/18-010r7/18-010r7.html#39
+#[derive(Debug, PartialEq)]
+pub struct Axis<'a> {
+    pub name: &'a str,
+    pub unit: Option<Unit<'a>>,
+}
+
 // see https://docs.ogc.org/is/18-010r7/18-010r7.html#125
 #[derive(Debug, PartialEq)]
 #[non_exhaustive]
