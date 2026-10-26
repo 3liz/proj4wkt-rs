@@ -2,7 +2,7 @@
 //! Method mapping
 //!
 use crate::builder::parse_number;
-use crate::consts::{methods, Wkt2Const};
+use crate::consts::{Wkt2Const, methods};
 use crate::errors::Result;
 use crate::model::{Parameter, Projection, Unit};
 use crate::params::{self, ParamMapping};

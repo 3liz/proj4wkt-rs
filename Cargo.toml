@@ -1,8 +1,7 @@
 [package]
 name = "proj4wkt"
 version = "0.1.1"
-edition = "2021"
-rust-version = "1.66"
+edition = "2024"
 description = "Parse WKT to Proj strings"
 readme = "./README.md"
 keywords = ["gis", "proj", "projection", "geography", "geospatial"]

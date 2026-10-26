@@ -2,10 +2,10 @@
 //! Format WKT CRS syntactic tree
 //! to projstring
 //!
-use crate::builder::{parse_number, Node};
+use crate::builder::{Node, parse_number};
 use crate::consts::methods;
 use crate::errors::{Error, Result};
-use crate::methods::{find_method_mapping, MethodMapping};
+use crate::methods::{MethodMapping, find_method_mapping};
 use crate::model::*;
 use crate::params;
 

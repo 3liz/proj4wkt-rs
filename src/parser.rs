@@ -5,6 +5,7 @@
 //! tokens that reference str slices of the original input
 //!
 use nom::{
+    IResult, Parser,
     branch::alt,
     bytes::complete::{is_not, tag},
     character::complete::{alpha1, alphanumeric1, char, digit1, multispace0},
@@ -12,7 +13,6 @@ use nom::{
     multi::{fold_many0, many0_count},
     number::complete::recognize_float,
     sequence::{delimited, pair, preceded, terminated},
-    IResult, Parser,
 };
 
 use crate::errors::{Error, Result};

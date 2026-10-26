@@ -43,6 +43,136 @@ pub mod fixtures {
                 AUTHORITY["EPSG","9122"]],
             AUTHORITY["EPSG","4326"]
         ]"#;
+
+    // EPSG:4326, WKT2 2019 with datum ensemble (projinfo, PROJ 9.4.0)
+    pub const WKT2_2019_GEOGCRS_WGS84: &str = r#"
+        GEOGCRS["WGS 84",
+            ENSEMBLE["World Geodetic System 1984 ensemble",
+                MEMBER["World Geodetic System 1984 (Transit)"],
+                MEMBER["World Geodetic System 1984 (G730)"],
+                MEMBER["World Geodetic System 1984 (G873)"],
+                MEMBER["World Geodetic System 1984 (G1150)"],
+                MEMBER["World Geodetic System 1984 (G1674)"],
+                MEMBER["World Geodetic System 1984 (G1762)"],
+                MEMBER["World Geodetic System 1984 (G2139)"],
+                ELLIPSOID["WGS 84",6378137,298.257223563,
+                    LENGTHUNIT["metre",1]],
+                ENSEMBLEACCURACY[2.0]],
+            PRIMEM["Greenwich",0,
+                ANGLEUNIT["degree",0.0174532925199433]],
+            CS[ellipsoidal,2],
+                AXIS["geodetic latitude (Lat)",north,
+                    ORDER[1],
+                    ANGLEUNIT["degree",0.0174532925199433]],
+                AXIS["geodetic longitude (Lon)",east,
+                    ORDER[2],
+                    ANGLEUNIT["degree",0.0174532925199433]],
+            USAGE[
+                SCOPE["Horizontal component of 3D system."],
+                AREA["World."],
+                BBOX[-90,-180,90,180]],
+            ID["EPSG",4326]]"#;
+
+    // EPSG:32631, WKT2 2019 (projinfo, PROJ 9.4.0)
+    pub const WKT2_2019_PROJCRS_UTM31N: &str = r#"
+        PROJCRS["WGS 84 / UTM zone 31N",
+            BASEGEOGCRS["WGS 84",
+                ENSEMBLE["World Geodetic System 1984 ensemble",
+                    MEMBER["World Geodetic System 1984 (Transit)"],
+                    MEMBER["World Geodetic System 1984 (G730)"],
+                    MEMBER["World Geodetic System 1984 (G873)"],
+                    MEMBER["World Geodetic System 1984 (G1150)"],
+                    MEMBER["World Geodetic System 1984 (G1674)"],
+                    MEMBER["World Geodetic System 1984 (G1762)"],
+                    MEMBER["World Geodetic System 1984 (G2139)"],
+                    ELLIPSOID["WGS 84",6378137,298.257223563,
+                        LENGTHUNIT["metre",1]],
+                    ENSEMBLEACCURACY[2.0]],
+                PRIMEM["Greenwich",0,
+                    ANGLEUNIT["degree",0.0174532925199433]],
+                ID["EPSG",4326]],
+            CONVERSION["UTM zone 31N",
+                METHOD["Transverse Mercator",
+                    ID["EPSG",9807]],
+                PARAMETER["Latitude of natural origin",0,
+                    ANGLEUNIT["degree",0.0174532925199433],
+                    ID["EPSG",8801]],
+                PARAMETER["Longitude of natural origin",3,
+                    ANGLEUNIT["degree",0.0174532925199433],
+                    ID["EPSG",8802]],
+                PARAMETER["Scale factor at natural origin",0.9996,
+                    SCALEUNIT["unity",1],
+                    ID["EPSG",8805]],
+                PARAMETER["False easting",500000,
+                    LENGTHUNIT["metre",1],
+                    ID["EPSG",8806]],
+                PARAMETER["False northing",0,
+                    LENGTHUNIT["metre",1],
+                    ID["EPSG",8807]]],
+            CS[Cartesian,2],
+                AXIS["(E)",east,
+                    ORDER[1],
+                    LENGTHUNIT["metre",1]],
+                AXIS["(N)",north,
+                    ORDER[2],
+                    LENGTHUNIT["metre",1]],
+            USAGE[
+                SCOPE["Navigation and medium accuracy spatial referencing."],
+                AREA["Between 0°E and 6°E, northern hemisphere between equator and 84°N, onshore and offshore. Algeria. Andorra. Belgium. Benin. Burkina Faso. Denmark - North Sea. France. Germany - North Sea. Ghana. Luxembourg. Mali. Netherlands. Niger. Nigeria. Norway. Spain. Togo. United Kingdom (UK) - North Sea."],
+                BBOX[0,0,84,6]],
+            ID["EPSG",32631]]"#;
+
+    // EPSG:4326, WKT2 2015 (projinfo, PROJ 9.4.0)
+    pub const WKT2_2015_GEODCRS_WGS84: &str = r#"
+        GEODCRS["WGS 84",
+            DATUM["World Geodetic System 1984",
+                ELLIPSOID["WGS 84",6378137,298.257223563,
+                    LENGTHUNIT["metre",1]]],
+            PRIMEM["Greenwich",0,
+                ANGLEUNIT["degree",0.0174532925199433]],
+            CS[ellipsoidal,2],
+                AXIS["geodetic latitude (Lat)",north,
+                    ORDER[1],
+                    ANGLEUNIT["degree",0.0174532925199433]],
+                AXIS["geodetic longitude (Lon)",east,
+                    ORDER[2],
+                    ANGLEUNIT["degree",0.0174532925199433]],
+            SCOPE["Horizontal component of 3D system."],
+            AREA["World."],
+            BBOX[-90,-180,90,180],
+            ID["EPSG",4326]]"#;
+
+    // EPSG:4978, geocentric WKT2 2019 (projinfo, PROJ 9.4.0)
+    pub const WKT2_2019_GEODCRS_GEOCENTRIC: &str = r#"
+        GEODCRS["WGS 84",
+            ENSEMBLE["World Geodetic System 1984 ensemble",
+                MEMBER["World Geodetic System 1984 (Transit)"],
+                MEMBER["World Geodetic System 1984 (G730)"],
+                MEMBER["World Geodetic System 1984 (G873)"],
+                MEMBER["World Geodetic System 1984 (G1150)"],
+                MEMBER["World Geodetic System 1984 (G1674)"],
+                MEMBER["World Geodetic System 1984 (G1762)"],
+                MEMBER["World Geodetic System 1984 (G2139)"],
+                ELLIPSOID["WGS 84",6378137,298.257223563,
+                    LENGTHUNIT["metre",1]],
+                ENSEMBLEACCURACY[2.0]],
+            PRIMEM["Greenwich",0,
+                ANGLEUNIT["degree",0.0174532925199433]],
+            CS[Cartesian,3],
+                AXIS["(X)",geocentricX,
+                    ORDER[1],
+                    LENGTHUNIT["metre",1]],
+                AXIS["(Y)",geocentricY,
+                    ORDER[2],
+                    LENGTHUNIT["metre",1]],
+                AXIS["(Z)",geocentricZ,
+                    ORDER[3],
+                    LENGTHUNIT["metre",1]],
+            USAGE[
+                SCOPE["Geodesy. Navigation and positioning using GPS satellite system."],
+                AREA["World."],
+                BBOX[-90,-180,90,180]],
+            ID["EPSG",4978]]"#;
 }
 
 #[test]
@@ -582,4 +712,44 @@ fn convert_prime_meridian() {
         crate::wkt_to_projstring(&geogcs(r#"PRIMEM["Greenwich",0]"#, degree)).unwrap(),
         format!("+proj=longlat{ELLPS}"),
     );
+}
+
+#[test]
+fn convert_wkt2_geodetic_crs() {
+    setup();
+    const WGS84: &str = " +a=6378137 +rf=298.257223563 +towgs84=0,0,0,0,0,0,0";
+
+    for wkt in [
+        fixtures::WKT2_2019_GEOGCRS_WGS84,
+        fixtures::WKT2_2015_GEODCRS_WGS84,
+    ] {
+        assert_eq!(
+            crate::wkt_to_projstring(wkt).unwrap(),
+            format!("+proj=longlat{WGS84}"),
+            "{wkt}"
+        );
+    }
+
+    assert_eq!(
+        crate::wkt_to_projstring(fixtures::WKT2_2019_PROJCRS_UTM31N).unwrap(),
+        format!("+proj=tmerc +lat_0=0 +lon_0=3 +k=0.9996 +x_0=500000 +y_0=0 +units=m{WGS84}"),
+    );
+
+    // Vertical datum ensemble has no ellipsoid
+    let compound = format!(
+        concat!(
+            r#"COMPOUNDCRS["WGS 84 + Height",{},"#,
+            r#"VERTCRS["Height",ENSEMBLE["Vertical ensemble",MEMBER["A"],MEMBER["B"],"#,
+            r#"ENSEMBLEACCURACY[0.1]],CS[vertical,1],AXIS["gravity-related height (H)",up,"#,
+            r#"LENGTHUNIT["metre",1]]]]"#,
+        ),
+        fixtures::WKT2_2019_GEOGCRS_WGS84
+    );
+    assert_eq!(
+        crate::wkt_to_projstring(&compound).unwrap(),
+        format!("+proj=longlat{WGS84}"),
+    );
+
+    // Geocentric crs is not supported
+    assert!(crate::wkt_to_projstring(fixtures::WKT2_2019_GEODCRS_GEOCENTRIC).is_err());
 }

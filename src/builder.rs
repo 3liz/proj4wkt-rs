@@ -10,7 +10,7 @@
 //!
 use crate::errors::{Error, Result};
 use crate::model::*;
-use crate::parser::{parse, Attribute, Processor};
+use crate::parser::{Attribute, Processor, parse};
 
 #[allow(non_camel_case_types)]
 #[allow(clippy::upper_case_acronyms)]
@@ -30,6 +30,7 @@ pub enum Node<'a> {
     VERTICALCRS(Verticalcrs<'a>),
     TOWGS84(Vec<&'a str>),
     AXIS(Axis<'a>),
+    CS(&'a str),
     OTHER(&'a str),
 }
 
@@ -64,14 +65,15 @@ impl<'a> Processor<'a> for Builder {
         match key {
             "AUTHORITY" | "ID" => self.authority(attrs).map(Node::AUTHORITY),
             "PROJCS" | "PROJCRS" | "PROJECTEDCRS" => self.projcs(attrs).map(Node::PROJCRS),
-            "GEOGCS" | "GEOGCRS" | "GEOGRAPHICCRS" | "BASEGEODCRS" | "BASEGEOGCRS" => {
-                self.geogcs(attrs).map(Node::GEOGCRS)
-            }
+            "GEOGCS" | "GEOGCRS" | "GEOGRAPHICCRS" | "GEODCRS" | "GEODETICCRS" | "BASEGEODCRS"
+            | "BASEGEOGCRS" => self.geogcs(attrs).map(Node::GEOGCRS),
             "ELLIPSOID" | "SPHEROID" => self.ellipsoid(attrs).map(Node::ELLIPSOID),
             "CONVERSION" => self.projection(attrs).map(Node::PROJECTION),
             "PROJECTION" | "METHOD" => self.method(attrs).map(Node::METHOD),
             "PARAMETER" => self.parameter(attrs).map(Node::PARAMETER),
             "DATUM" | "GEODETICDATUM" | "TRF" => self.datum(attrs).map(Node::DATUM),
+            "ENSEMBLE" => self.ensemble(key, attrs),
+            "CS" => self.cs(attrs).map(Node::CS),
             "PRIMEM" | "PRIMEMERIDIAN" => self.primem(attrs).map(Node::PRIMEM),
             "UNIT" | "ANGLEUNIT" | "SCALEUNIT" | "LENGTHUNIT" => {
                 self.unit(key, attrs).map(Node::UNIT)
@@ -256,6 +258,7 @@ impl Builder {
         let mut unit = None;
         let mut axis_unit = None;
         let mut authority = None;
+        let mut cs_type = None;
 
         for (i, a) in attrs.enumerate() {
             match a {
@@ -263,6 +266,7 @@ impl Builder {
                 Attribute::Keyword(_, n) => match n {
                     Node::DATUM(d) => datum = Some(d),
                     Node::PRIMEM(pm) => prime_meridian = Some(pm),
+                    Node::CS(cs) => cs_type = Some(cs),
                     Node::UNIT(u) => unit = Some(u),
                     Node::AUTHORITY(a) => authority = Some(a),
                     // WKT2: keep the first axis angular unit,
@@ -276,6 +280,11 @@ impl Builder {
                 },
                 _ => (),
             }
+        }
+
+        // WKT2: GEODCRS may be a geocentric crs
+        if cs_type.is_some_and(|cs| cs.eq_ignore_ascii_case("Cartesian")) {
+            return Err(Error::Wkt("Geocentric crs is not supported".into()));
         }
 
         // WKT2: a unit common to all axes follows the AXIS list,
@@ -358,6 +367,47 @@ impl Builder {
             ellipsoid: ellipsoid.ok_or(Error::Wkt("Missing ellipsoid for DATUM".into()))?,
             to_wgs84,
         })
+    }
+
+    // WKT2 datum ensemble: a geodetic ensemble is used as datum,
+    // a vertical ensemble has no ellipsoid
+    fn ensemble<'a>(
+        &self,
+        key: &'a str,
+        attrs: impl Iterator<Item = Attribute<'a, Node<'a>>>,
+    ) -> Result<Node<'a>> {
+        let mut name = None;
+        let mut ellipsoid = None;
+
+        for (i, a) in attrs.enumerate() {
+            match a {
+                Attribute::Quoted(s) if i == 0 => name = Some(s),
+                Attribute::Keyword(_, Node::ELLIPSOID(e)) => ellipsoid = Some(e),
+                _ => (),
+            }
+        }
+
+        Ok(match ellipsoid {
+            Some(ellipsoid) => Node::DATUM(Datum {
+                name: name.unwrap_or("Unknown"),
+                ellipsoid,
+                to_wgs84: vec![],
+            }),
+            None => Node::OTHER(key),
+        })
+    }
+
+    fn cs<'a>(&self, attrs: impl Iterator<Item = Attribute<'a, Node<'a>>>) -> Result<&'a str> {
+        let mut cs_type = None;
+
+        for (i, a) in attrs.enumerate() {
+            match a {
+                Attribute::Label(s) if i == 0 => cs_type = Some(s),
+                _ => (),
+            }
+        }
+
+        cs_type.ok_or(Error::Wkt("Missing CS type".into()))
     }
 
     fn authority<'a>(
