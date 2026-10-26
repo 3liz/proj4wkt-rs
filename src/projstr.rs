@@ -93,8 +93,8 @@ impl<T: Write> Formatter<T> {
                     {
                         lon
                     }
-                    Some(unit) if !unit.name.eq_ignore_ascii_case("degree") => {
-                        (lon * unit.factor).to_degrees()
+                    Some(unit) if !is_degree(unit) => {
+                        round_degrees((lon * unit.factor).to_degrees())
                     }
                     _ => lon,
                 };
@@ -129,7 +129,9 @@ impl<T: Write> Formatter<T> {
                 ));
             }
             // Convert to meter
-            Some(unit) if unit.factor != 1.0 => (parse_number(ellps.a)? * unit.factor).to_string(),
+            Some(unit) if unit.factor != 1.0 => {
+                round_meters(parse_number(ellps.a)? * unit.factor).to_string()
+            }
             _ => ellps.a.to_string(),
         };
         // Inverse flattening is unitless, and 0 defines a sphere
@@ -210,13 +212,19 @@ impl<T: Write> Formatter<T> {
                 match unit_type {
                     UnitType::Linear if unit.factor != 1.0 => {
                         return parse_number(p.value).and_then(|value| {
-                            write!(w, " +{}={}", name, value * unit.factor).map_err(Error::from)
+                            write!(w, " +{}={}", name, round_meters(value * unit.factor))
+                                .map_err(Error::from)
                         });
                     }
-                    UnitType::Angular if !unit.name.eq_ignore_ascii_case("degree") => {
+                    UnitType::Angular if !is_degree(unit) => {
                         return parse_number(p.value).and_then(|value| {
-                            write!(w, " +{}={}", name, (value * unit.factor).to_degrees())
-                                .map_err(Error::from)
+                            write!(
+                                w,
+                                " +{}={}",
+                                name,
+                                round_degrees((value * unit.factor).to_degrees())
+                            )
+                            .map_err(Error::from)
                         });
                     }
                     _ => (),
@@ -254,6 +262,52 @@ impl<T: Write> Formatter<T> {
         }
 
         Ok(())
+    }
+}
+
+// Values computed from unit conversions are rounded to remove
+// floating point noise while keeping a sub-micrometric precision
+// on the ground: 1e-12 degree is less than 0.06 µm, 1e-7 m is 0.1 µm.
+// Values copied from the WKT are not rounded.
+//
+// Why 12 and not more. The noise in the outputs comes from f64 arithmetic, 
+// which is one or two units in the last place: 7×10⁻¹⁵° at 46.8°
+// and 2.8×10⁻¹⁴° at 180°, or 1–3 nm on the ground (along the equator or a meridian).
+//
+// Rounding to 12 decimals removes that noise reliably for any angle up to 360°.
+// With 13 decimals, two units of noise near 180° can survive.
+//
+fn round_degrees(value: f64) -> f64 {
+    round(value, 1.0e12)
+}
+
+// For lengths in metres, the same reasoning as above gives 7 decimals (at most 0.05 µm).
+// f64 noise on values up to 10⁷ m is a few nanometres, so 7 decimals removes it: 
+// 299999.9999999998 → 300000.
+//
+fn round_meters(value: f64) -> f64 {
+    round(value, 1.0e7)
+}
+
+// Scale and the scaled value are exact integers in f64 (below 2^53),
+// so the division gives the f64 nearest to the rounded decimal.
+// Adding 0.0 turns -0.0 into 0.0.
+fn round(value: f64, scale: f64) -> f64 {
+    (value * scale).round() / scale + 0.0
+}
+
+// WKT unit names are free text: trust the EPSG code
+// if available, otherwise the conversion factor
+fn is_degree(unit: &Unit) -> bool {
+    match &unit.authority {
+        // degree, degree (supplier to define representation)
+        Some(auth) if auth.name.eq_ignore_ascii_case("EPSG") => {
+            matches!(auth.code, "9102" | "9122")
+        }
+        _ => {
+            let degree = 1.0_f64.to_radians();
+            ((unit.factor - degree) / degree).abs() < 1.0e-10
+        }
     }
 }
 
@@ -311,5 +365,21 @@ mod tests {
                 " +rf=298.257222101 +towgs84=0,0,0,0,0,0,0",
             )
         );
+    }
+
+    #[test]
+    fn round_computed_values() {
+        // Floating point noise is removed
+        assert_eq!(round_degrees(46.799999999999805).to_string(), "46.8");
+        assert_eq!(round_degrees(2.3372291700000005).to_string(), "2.33722917");
+        assert_eq!(round_meters(299999.9999999998).to_string(), "300000");
+        // Sub-micrometric precision is kept
+        assert_eq!(
+            round_degrees(2.999999566853654).to_string(),
+            "2.999999566854"
+        );
+        assert_eq!(round_meters(6378350.87041).to_string(), "6378350.87041");
+        // No negative zero
+        assert_eq!(round_degrees(-1.0e-15).to_string(), "0");
     }
 }

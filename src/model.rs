@@ -85,6 +85,7 @@ pub struct Unit<'a> {
     pub name: &'a str,
     pub factor: f64,
     pub unit_type: UnitType,
+    pub authority: Option<Authority<'a>>,
 }
 
 // WKT2 axis unit may be defined per axis
@@ -97,6 +98,8 @@ pub struct Axis<'a> {
 }
 
 // see https://docs.ogc.org/is/18-010r7/18-010r7.html#125
+// Built once per parse, variant sizes do not matter
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, PartialEq)]
 #[non_exhaustive]
 pub enum Horizontalcrs<'a> {

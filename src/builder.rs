@@ -443,13 +443,13 @@ impl Builder {
     ) -> Result<Unit<'a>> {
         let mut name = None;
         let mut factor = None;
-        let mut _authority = None;
+        let mut authority = None;
 
         for (i, a) in attrs.enumerate() {
             match a {
                 Attribute::Quoted(s) if i == 0 => name = Some(s),
                 Attribute::Number(s) if i == 1 => factor = Some(parse_number(s)?),
-                Attribute::Keyword(_, Node::AUTHORITY(auth)) => _authority = Some(auth),
+                Attribute::Keyword(_, Node::AUTHORITY(auth)) => authority = Some(auth),
                 _ => (),
             }
         }
@@ -463,6 +463,7 @@ impl Builder {
                 "LENGTHUNIT" => UnitType::Linear,
                 _ => UnitType::Unknown,
             },
+            authority,
         })
     }
 

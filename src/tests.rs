@@ -231,6 +231,10 @@ fn build_unit() {
             name: "degree",
             factor: 0.01745329251994328,
             unit_type: UnitType::Unknown,
+            authority: Some(Authority {
+                name: "EPSG",
+                code: "9122",
+            }),
         })
     );
 }
@@ -260,6 +264,7 @@ fn build_wkt2_units() {
                 name,
                 factor,
                 unit_type,
+                authority: None,
             }),
             "{wkt}"
         );
@@ -352,6 +357,10 @@ fn build_nad83() {
                     name: "degree",
                     factor: 0.01745329251994328,
                     unit_type: UnitType::Angular,
+                    authority: Some(Authority {
+                        name: "EPSG",
+                        code: "9122",
+                    }),
                 }),
                 authority: Some(Authority {
                     name: "EPSG",
@@ -411,6 +420,10 @@ fn build_nad83() {
                 name: "metre",
                 factor: 1.0,
                 unit_type: UnitType::Linear,
+                authority: Some(Authority {
+                    name: "EPSG",
+                    code: "9001",
+                }),
             }),
             axis_directions: vec!["EAST", "NORTH"],
         }),
@@ -424,6 +437,7 @@ fn build_wkt2_projcs_axis_unit() {
         name: "US survey foot",
         factor: 0.304800609601219,
         unit_type: UnitType::Linear,
+        authority: None,
     };
     let crs = concat!(
         r#"PROJCRS["NAD83 / New York Long Island (ftUS)","#,
@@ -469,6 +483,7 @@ fn build_wkt2_geogcs_axis_unit() {
         name: "grad",
         factor: 0.0157079632679489,
         unit_type: UnitType::Angular,
+        authority: None,
     };
     let crs = concat!(
         r#"GEOGCRS["NTF (Paris)",DATUM["Nouvelle Triangulation Francaise (Paris)","#,
@@ -681,10 +696,7 @@ fn convert_prime_meridian() {
 
     for (wkt, pm) in [
         // WKT1: longitude in the GEOGCS unit
-        (
-            geogcs(r#"PRIMEM["Paris",2.5969213]"#, grad),
-            "2.3372291700000005",
-        ),
+        (geogcs(r#"PRIMEM["Paris",2.5969213]"#, grad), "2.33722917"),
         // GDAL WKT1: Paris longitude in degrees with GEOGCS unit in grads
         (geogcs(r#"PRIMEM["Paris",2.33722917]"#, grad), "2.33722917"),
         (
@@ -772,7 +784,7 @@ fn convert_esri_wkt1() {
         // EPSG:27572, Lambert_Conformal_Conic with 1 standard parallel: LCC 1SP
         (
             r#"PROJCS["NTF_Paris_Lambert_Zone_II",GEOGCS["GCS_NTF_Paris",DATUM["Nouvelle_Triangulation_Francaise_(Paris)",SPHEROID["Clarke_1880_IGN",6378249.2,293.466021293627]],PRIMEM["Paris",2.33722917],UNIT["Grad",0.0157079632679489]],PROJECTION["Lambert_Conformal_Conic"],PARAMETER["False_Easting",600000.0],PARAMETER["False_Northing",2200000.0],PARAMETER["Central_Meridian",0.0],PARAMETER["Standard_Parallel_1",52.0],PARAMETER["Scale_Factor",0.99987742],PARAMETER["Latitude_Of_Origin",52.0],UNIT["Meter",1.0]]"#,
-            "+proj=lcc +x_0=600000.0 +y_0=2200000.0 +lon_0=0 +k_0=0.99987742 +lat_1=46.799999999999805 +lat_0=46.799999999999805 +units=m +a=6378249.2 +rf=293.466021293627 +pm=2.33722917",
+            "+proj=lcc +x_0=600000.0 +y_0=2200000.0 +lon_0=0 +k_0=0.99987742 +lat_1=46.8 +lat_0=46.8 +units=m +a=6378249.2 +rf=293.466021293627 +pm=2.33722917",
         ),
         // EPSG:3031, Stereographic_South_Pole: Polar Stereographic variant B
         (
@@ -1050,9 +1062,9 @@ fn convert_parameter_unit() {
     assert_eq!(
         crate::wkt_to_projstring(wkt).unwrap(),
         concat!(
-            "+proj=lcc +lat_1=46.799999999999805 +lat_0=46.799999999999805 +lon_0=0",
+            "+proj=lcc +lat_1=46.8 +lat_0=46.8 +lon_0=0",
             " +k_0=0.99987742 +x_0=600000 +y_0=2200000 +units=m +a=6378249.2",
-            " +rf=293.466021293627 +pm=2.3372291699999908",
+            " +rf=293.466021293627 +pm=2.33722917",
         ),
     );
 
@@ -1074,7 +1086,7 @@ fn convert_parameter_unit() {
     assert_eq!(
         crate::wkt_to_projstring(&wkt).unwrap(),
         concat!(
-            "+proj=tmerc +lon_0=-75 +x_0=299999.9999999998 +units=m +a=6378137",
+            "+proj=tmerc +lon_0=-75 +x_0=300000 +units=m +a=6378137",
             " +rf=298.257223563 +towgs84=0,0,0,0,0,0,0",
         ),
     );
@@ -1159,4 +1171,61 @@ fn convert_datum_without_towgs84() {
         crate::wkt_to_projstring(epsg_4258).unwrap(),
         "+proj=longlat +a=6378137 +rf=298.257222101 +towgs84=0,0,0,0,0,0,0",
     );
+}
+
+#[test]
+fn convert_degree_unit() {
+    setup();
+    // WKT unit names are free text: the EPSG code, otherwise the
+    // conversion factor, defines the degree
+    let wkt = |unit: &str, primem: &str| {
+        format!(
+            concat!(
+                r#"PROJCS["test",GEOGCS["test",DATUM["WGS_1984","#,
+                r#"SPHEROID["WGS 84",6378137,298.257223563]],{},{}],"#,
+                r#"PROJECTION["Transverse_Mercator"],PARAMETER["central_meridian",3],"#,
+                r#"UNIT["metre",1]]"#,
+            ),
+            primem, unit
+        )
+    };
+    const GREENWICH: &str = r#"PRIMEM["Greenwich",0]"#;
+    const WGS84: &str = " +units=m +a=6378137 +rf=298.257223563 +towgs84=0,0,0,0,0,0,0";
+
+    for (unit, primem, projstr) in [
+        // Any name with the degree conversion factor
+        (
+            r#"UNIT["Degrees",0.0174532925199433]"#,
+            GREENWICH,
+            format!("+proj=tmerc +lon_0=3{WGS84}"),
+        ),
+        (
+            r#"UNIT["Degrees",0.0174532925199433]"#,
+            r#"PRIMEM["Ferro",-17.6666666666667]"#,
+            format!("+proj=tmerc +lon_0=3{WGS84} +pm=-17.6666666666667"),
+        ),
+        // EPSG code takes precedence over the conversion factor
+        (
+            r#"UNIT["deg",0.01745329,AUTHORITY["EPSG","9122"]]"#,
+            GREENWICH,
+            format!("+proj=tmerc +lon_0=3{WGS84}"),
+        ),
+        (
+            r#"UNIT["deg",0.01745329]"#,
+            GREENWICH,
+            format!("+proj=tmerc +lon_0=2.999999566854{WGS84}"),
+        ),
+        // EPSG code takes precedence over the name (grad)
+        (
+            r#"UNIT["degree",0.01570796326794897,AUTHORITY["EPSG","9105"]]"#,
+            GREENWICH,
+            format!("+proj=tmerc +lon_0=2.7{WGS84}"),
+        ),
+    ] {
+        assert_eq!(
+            crate::wkt_to_projstring(&wkt(unit, primem)).unwrap(),
+            projstr,
+            "{unit} {primem}"
+        );
+    }
 }
