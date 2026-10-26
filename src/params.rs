@@ -355,6 +355,16 @@ map!(
     LAT_1
 );
 
+// LCC 1SP latitude of natural origin is also
+// the latitude of origin
+map!(
+    LAT_LCC_1SP_LAT_0,
+    LATITUDE_OF_NATURAL_ORIGIN,
+    WKT1_LATITUDE_OF_ORIGIN,
+    Angular,
+    LAT_0
+);
+
 map!(
     SCALE_FACTOR_PSEUDO_STD_PARALLEL,
     SCALE_FACTOR_PSEUDO_STANDARD_PARALLEL,

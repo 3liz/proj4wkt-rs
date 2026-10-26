@@ -23,26 +23,25 @@ impl MethodMapping {
         self.proj_aux
     }
 
-    /// Look up for mapped proj parameter
-    pub fn find_proj_param(&self, p: &Parameter) -> Option<&ParamMapping> {
-        if p.name.is_empty() {
-            None
-        } else if let Some(auth) = &p.authority {
-            if auth.name == "EPSG" {
-                self.param_mapping
-                    .iter()
-                    .find(|pp| !pp.proj_name.is_empty() && pp.epsg_code == auth.code)
-            } else {
-                None
-            }
-        } else {
-            self.param_mapping.iter().find(|pp| {
-                !pp.proj_name.is_empty()
-                    && (pp.wkt2_name.eq_ignore_ascii_case(p.name)
-                        || pp.wkt1_name.eq_ignore_ascii_case(p.name))
-            })
-        }
-        .copied()
+    /// Look up for mapped proj parameters
+    ///
+    /// A parameter may be mapped to several proj parameters
+    /// (i.e `lat_1` and `lat_0` for LCC 1SP)
+    pub fn find_proj_params<'a>(
+        &'a self,
+        p: &'a Parameter<'a>,
+    ) -> impl Iterator<Item = &'a ParamMapping> + 'a {
+        self.param_mapping.iter().copied().filter(move |pp| {
+            !p.name.is_empty()
+                && !pp.proj_name.is_empty()
+                && match &p.authority {
+                    Some(auth) => auth.name == "EPSG" && pp.epsg_code == auth.code,
+                    None => {
+                        pp.wkt2_name.eq_ignore_ascii_case(p.name)
+                            || pp.wkt1_name.eq_ignore_ascii_case(p.name)
+                    }
+                }
+        })
     }
 }
 
@@ -84,8 +83,9 @@ mod parameters {
         &params::FALSE_NORTHING,
     ];
 
-    pub const LCC_1SP: [&ParamMapping; 5] = [
+    pub const LCC_1SP: [&ParamMapping; 6] = [
         &params::LAT_LCC_1SP,
+        &params::LAT_LCC_1SP_LAT_0,
         &params::LONGITUDE_NAT_ORIGIN,
         &params::SCALE_FACTOR,
         &params::FALSE_EASTING,

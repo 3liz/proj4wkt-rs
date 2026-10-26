@@ -432,3 +432,38 @@ fn convert_ellipsoid_unit() {
         );
     }
 }
+
+#[test]
+fn convert_lcc_1sp_lat_0() {
+    setup();
+    // Latitude of natural origin is both 'lat_1' and 'lat_0'
+    let wkt1 = concat!(
+        r#"PROJCS["test",GEOGCS["WGS 84",DATUM["WGS_1984","#,
+        r#"SPHEROID["WGS 84",6378137,298.257223563]],UNIT["degree",0.0174532925199433]],"#,
+        r#"PROJECTION["Lambert_Conformal_Conic_1SP"],"#,
+        r#"PARAMETER["latitude_of_origin",46.8],PARAMETER["central_meridian",2.337],"#,
+        r#"PARAMETER["scale_factor",0.9998],PARAMETER["false_easting",600000],"#,
+        r#"PARAMETER["false_northing",2200000],UNIT["metre",1]]"#,
+    );
+    let wkt2 = concat!(
+        r#"PROJCRS["test",BASEGEOGCRS["WGS 84",DATUM["World Geodetic System 1984","#,
+        r#"ELLIPSOID["WGS 84",6378137,298.257223563]]],CONVERSION["test","#,
+        r#"METHOD["Lambert Conic Conformal (1SP)",ID["EPSG",9801]],"#,
+        r#"PARAMETER["Latitude of natural origin",46.8,ID["EPSG",8801]],"#,
+        r#"PARAMETER["Longitude of natural origin",2.337,ID["EPSG",8802]],"#,
+        r#"PARAMETER["Scale factor at natural origin",0.9998,ID["EPSG",8805]],"#,
+        r#"PARAMETER["False easting",600000,ID["EPSG",8806]],"#,
+        r#"PARAMETER["False northing",2200000,ID["EPSG",8807]]]]"#,
+    );
+    for wkt in [wkt1, wkt2] {
+        assert_eq!(
+            crate::wkt_to_projstring(wkt).unwrap(),
+            concat!(
+                "+proj=lcc +lat_1=46.8 +lat_0=46.8 +lon_0=2.337 +k_0=0.9998",
+                " +x_0=600000 +y_0=2200000 +units=m +a=6378137 +rf=298.257223563",
+                " +towgs84=0,0,0,0,0,0,0",
+            ),
+            "{wkt}"
+        );
+    }
+}

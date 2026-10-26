@@ -182,17 +182,15 @@ impl<T: Write> Formatter<T> {
             write!(w, " +{}={}", name, p.value).map_err(Error::from)
         }
 
+        // Parameters without proj mapping are irrelevant
         params.iter().try_for_each(|p| {
-            if let Some(pm) = mapping.find_proj_param(p) {
-                match pm.unit_type {
+            mapping
+                .find_proj_params(p)
+                .try_for_each(|pm| match pm.unit_type {
                     UnitType::Linear => write_unit(&mut self.w, pm.proj_name, p, axis_unit),
                     UnitType::Angular => write_unit(&mut self.w, pm.proj_name, p, geod_unit),
                     _ => write!(self.w, " +{}={}", pm.proj_name, p.value).map_err(Error::from),
-                }
-            } else {
-                // Irrelevant proj mapping
-                Ok(())
-            }
+                })
         })?;
 
         match axis_unit {
