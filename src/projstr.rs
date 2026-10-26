@@ -35,11 +35,12 @@ use std::io::Write;
 /// /// Format a WKT CRS str to a String
 /// use proj4wkt::{Builder, Formatter};
 ///
-/// let mut buf = String::new();
+/// let mut buf = Vec::new();
 /// Builder::new()
 ///    .parse(wkt_string)
-///    .and_then(|node| Formatter::new(unsafe { buf.as_mut_vec() }).format(&node))
-///    .unwrap()
+///    .and_then(|node| Formatter::new(&mut buf).format(&node))
+///    .unwrap();
+/// let projstr = String::from_utf8(buf).unwrap();
 /// ```
 ///
 pub struct Formatter<T: Write> {
@@ -69,8 +70,8 @@ impl<T: Write> Formatter<T> {
     }
 
     #[inline]
-    fn write_str(&mut self, s: &str) -> std::io::Result<usize> {
-        self.w.write(s.as_bytes())
+    fn write_str(&mut self, s: &str) -> std::io::Result<()> {
+        self.w.write_all(s.as_bytes())
     }
 
     fn add_geogcs(&mut self, geogcs: &Geogcs) -> Result<()> {
@@ -248,17 +249,10 @@ impl<T: Write> Formatter<T> {
                 })
         })?;
 
-        match axis_unit {
-            Some(unit) => {
-                if unit.factor != 1.0 {
-                    write!(self.w, " +to_meter={}", unit.factor)?;
-                } else {
-                    self.write_str(" +units=m")?;
-                }
-            }
-            None => {
-                self.write_str(" +units=m")?;
-            }
+        if let Some(unit) = axis_unit && unit.factor != 1.0 {
+            write!(self.w, " +to_meter={}", unit.factor)?;
+        } else {
+            self.write_str(" +units=m")?;
         }
 
         Ok(())
@@ -270,7 +264,7 @@ impl<T: Write> Formatter<T> {
 // on the ground: 1e-12 degree is less than 0.06 µm, 1e-7 m is 0.1 µm.
 // Values copied from the WKT are not rounded.
 //
-// Why 12 and not more. The noise in the outputs comes from f64 arithmetic, 
+// Why 12 and not more. The noise in the outputs comes from f64 arithmetic,
 // which is one or two units in the last place: 7×10⁻¹⁵° at 46.8°
 // and 2.8×10⁻¹⁴° at 180°, or 1–3 nm on the ground (along the equator or a meridian).
 //
@@ -282,7 +276,7 @@ fn round_degrees(value: f64) -> f64 {
 }
 
 // For lengths in metres, the same reasoning as above gives 7 decimals (at most 0.05 µm).
-// f64 noise on values up to 10⁷ m is a few nanometres, so 7 decimals removes it: 
+// f64 noise on values up to 10⁷ m is a few nanometres, so 7 decimals removes it:
 // 299999.9999999998 → 300000.
 //
 fn round_meters(value: f64) -> f64 {
@@ -346,11 +340,7 @@ mod tests {
     use crate::tests::{fixtures, setup};
 
     fn to_projstring(i: &str) -> Result<String> {
-        let mut buf = String::new();
-        Builder::new()
-            .parse(i)
-            .and_then(|node| Formatter::new(unsafe { buf.as_mut_vec() }).format(&node))
-            .and(Ok(buf))
+        crate::wkt_to_projstring(i)
     }
 
     #[test]
@@ -364,6 +354,37 @@ mod tests {
                 " +lat_0=-41 +lon_0=-71.5 +x_0=200000 +y_0=750000 +units=m +a=6378137",
                 " +rf=298.257222101 +towgs84=0,0,0,0,0,0,0",
             )
+        );
+    }
+
+    // Writer accepting one byte at a time
+    struct OneByteWriter(Vec<u8>);
+
+    impl Write for OneByteWriter {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            match buf.first() {
+                Some(b) => {
+                    self.0.push(*b);
+                    Ok(1)
+                }
+                None => Ok(0),
+            }
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn format_with_partial_writes() {
+        setup();
+        let node = Builder::new().parse(fixtures::WKT_GEOGCS_WGS84).unwrap();
+        let mut w = OneByteWriter(vec![]);
+        Formatter::new(&mut w).format(&node).unwrap();
+        assert_eq!(
+            String::from_utf8(w.0).unwrap(),
+            "+proj=longlat +a=6378137 +rf=298.257223563 +towgs84=0,0,0,0,0,0,0",
         );
     }
 

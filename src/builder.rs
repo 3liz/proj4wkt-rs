@@ -542,7 +542,7 @@ impl Builder {
         }
 
         Ok(Ellipsoid {
-            name: name.ok_or(Error::Wkt("Missing AUTHORITY name".into()))?,
+            name: name.ok_or(Error::Wkt("Missing ELLIPSOID name".into()))?,
             a: semi_major.ok_or(Error::Wkt("Invalid ELLIPSOID semi-major axis".into()))?,
             rf: rf.ok_or(Error::Wkt("Invalid ELLIPSOID inverse flattening".into()))?,
             unit,

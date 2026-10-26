@@ -38,7 +38,7 @@
 //!         " +rf=298.257222101 +towgs84=0,0,0,0,0,0,0",
 //!     )
 //! );
-//! 
+//!
 //! ```
 //!
 //! ## Limitations
@@ -64,11 +64,13 @@ use errors::Result;
 
 /// Convert a wkt string to a projstring
 pub fn wkt_to_projstring(i: &str) -> Result<String> {
-    let mut buf = String::new();
+    let mut buf = Vec::new();
     Builder::new()
         .parse(i)
-        .and_then(|node| Formatter::new(unsafe { buf.as_mut_vec() }).format(&node))
-        .and(Ok(buf))
+        .and_then(|node| Formatter::new(&mut buf).format(&node))?;
+    // The formatter only writes str
+    String::from_utf8(buf)
+        .map_err(|err| std::io::Error::new(std::io::ErrorKind::InvalidData, err).into())
 }
 
 // log for logging (optional).

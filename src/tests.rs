@@ -1337,6 +1337,13 @@ fn report_wkt_errors() {
             fixtures::WKT2_2019_GEODCRS_GEOCENTRIC,
             "Geocentric crs is not supported",
         ),
+        (
+            concat!(
+                r#"GEOGCS["x",DATUM["d",SPHEROID[6378137,298.257223563]],"#,
+                r#"UNIT["degree",0.0174532925199433]]"#,
+            ),
+            "Missing ELLIPSOID name",
+        ),
     ] {
         match crate::wkt_to_projstring(wkt) {
             Err(Error::Wkt(msg)) => assert_eq!(msg, message, "{wkt}"),
