@@ -189,10 +189,17 @@ where
     P: Processor<'a, Output = O>,
 {
     let i = i.trim_start();
-    object(i, p, depth + 1, error)
-        .or_else(|_| map(quoted_string, |s| Attribute::Quoted(s)).parse(i))
-        .or_else(|_| map(number, |n| Attribute::Number(n)).parse(i))
-        .or_else(|_| map(keyword, |l| Attribute::Label(l)).parse(i))
+    match object(i, p, depth + 1, error) {
+        // Not an object: try other attributes
+        Err(nom::Err::Error(_)) => alt((
+            map(quoted_string, Attribute::Quoted),
+            map(number, Attribute::Number),
+            map(keyword, Attribute::Label),
+        ))
+        .parse(i),
+        // Object or failure in object
+        result => result,
+    }
 }
 
 // Trim whitespaces
@@ -276,6 +283,45 @@ mod tests {
                     Attribute::Label("baz"),
                 ],
             ),
+        );
+    }
+
+    // Processor failing on 'BAR' nodes, recording the attributes
+    // received by the other nodes
+    #[derive(Default)]
+    struct FailingBuilder {
+        seen: std::cell::RefCell<Vec<String>>,
+    }
+
+    impl<'a> Processor<'a> for FailingBuilder {
+        type Err = Error;
+        type Output = ();
+
+        fn process<I>(&self, key: &'a str, _depth: usize, attrs: I) -> Result<(), Error>
+        where
+            I: Iterator<Item = Attribute<'a, ()>>,
+        {
+            let attrs: Vec<_> = attrs.collect();
+            if key == "BAR" {
+                return Err(Error::Wkt("BAR".into()));
+            }
+            self.seen
+                .borrow_mut()
+                .extend(attrs.iter().map(|a| format!("{key}: {a:?}")));
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn parse_processor_failure() {
+        let p = FailingBuilder::default();
+        let r = parse(r#"FOO["foo", BAR["bar"], BAZ]"#, &p);
+        assert!(matches!(r, Err(Error::Wkt(_))), "{r:?}");
+        // The failed node is not passed to its parent as a label
+        let seen = p.seen.borrow();
+        assert!(
+            !seen.iter().any(|s| s.contains(r#"Label("BAR")"#)),
+            "{seen:?}"
         );
     }
 
