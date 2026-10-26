@@ -37,8 +37,9 @@ impl MethodMapping {
             }
         } else {
             self.param_mapping.iter().find(|pp| {
-                pp.wkt2_name.eq_ignore_ascii_case(p.name)
-                    || pp.wkt1_name.eq_ignore_ascii_case(p.name)
+                !pp.proj_name.is_empty()
+                    && (pp.wkt2_name.eq_ignore_ascii_case(p.name)
+                        || pp.wkt1_name.eq_ignore_ascii_case(p.name))
             })
         }
         .copied()

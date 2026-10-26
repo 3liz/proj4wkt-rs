@@ -360,3 +360,43 @@ fn build_wkt2_geogcs_axis_unit() {
         }
     }
 }
+
+#[test]
+fn skip_parameters_without_proj_name() {
+    setup();
+    // WKT1 Krovak: 'pseudo_standard_parallel_1' has no proj equivalent
+    let krovak = concat!(
+        r#"PROJCS["S-JTSK / Krovak East North",GEOGCS["S-JTSK",DATUM["S_JTSK","#,
+        r#"SPHEROID["Bessel 1841",6377397.155,299.1528128]],PRIMEM["Greenwich",0],"#,
+        r#"UNIT["degree",0.0174532925199433]],PROJECTION["Krovak"],"#,
+        r#"PARAMETER["latitude_of_center",49.5],PARAMETER["longitude_of_center",24.83333333333333],"#,
+        r#"PARAMETER["azimuth",30.28813972222222],PARAMETER["pseudo_standard_parallel_1",78.5],"#,
+        r#"PARAMETER["scale_factor",0.9999],PARAMETER["false_easting",0],"#,
+        r#"PARAMETER["false_northing",0],UNIT["metre",1]]"#,
+    );
+    assert_eq!(
+        crate::wkt_to_projstring(krovak).unwrap(),
+        concat!(
+            "+proj=krovak +lat_0=49.5 +lon_0=24.83333333333333 +alpha=30.28813972222222",
+            " +k=0.9999 +x_0=0 +y_0=0 +units=m +a=6377397.155 +rf=299.1528128",
+            " +towgs84=0,0,0,0,0,0,0",
+        )
+    );
+
+    // WKT2 Mercator (variant A): 'Latitude of natural origin' is not exported
+    let merc = concat!(
+        r#"PROJCRS["WGS 84 / World Mercator",BASEGEOGCRS["WGS 84",DATUM["World Geodetic System 1984","#,
+        r#"ELLIPSOID["WGS 84",6378137,298.257223563]]],CONVERSION["World Mercator","#,
+        r#"METHOD["Mercator (variant A)",ID["EPSG",9804]],"#,
+        r#"PARAMETER["Latitude of natural origin",0],PARAMETER["Longitude of natural origin",0],"#,
+        r#"PARAMETER["Scale factor at natural origin",1],PARAMETER["False easting",0],"#,
+        r#"PARAMETER["False northing",0]]]"#,
+    );
+    assert_eq!(
+        crate::wkt_to_projstring(merc).unwrap(),
+        concat!(
+            "+proj=merc +lon_0=0 +k=1 +x_0=0 +y_0=0 +units=m +a=6378137 +rf=298.257223563",
+            " +towgs84=0,0,0,0,0,0,0",
+        )
+    );
+}
