@@ -396,3 +396,32 @@ map!(
     Angular,
     LON_0
 );
+
+// ESRI WKT1 parameter names differing from OGC WKT1 for
+// some methods: they are only matched by name
+// See PROJ /src/iso19111/operation/esriparammappings.cpp
+macro_rules! esri {
+    ($name:ident, $esri_name:expr, $unit_type:ident, $proj_name:ident) => {
+        pub(crate) const $name: ParamMapping = ParamMapping {
+            proj_name: ParamMapping::$proj_name,
+            wkt2_name: "",
+            epsg_code: "",
+            wkt1_name: $esri_name,
+            unit_type: UnitType::$unit_type,
+        };
+    };
+}
+
+esri!(
+    ESRI_LATITUDE_OF_ORIGIN,
+    "Latitude_Of_Origin",
+    Angular,
+    LAT_0
+);
+esri!(ESRI_CENTRAL_MERIDIAN, "Central_Meridian", Angular, LON_0);
+esri!(
+    ESRI_STANDARD_PARALLEL_1_LAT_TS,
+    "Standard_Parallel_1",
+    Angular,
+    LAT_TS
+);

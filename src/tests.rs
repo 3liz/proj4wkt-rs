@@ -753,3 +753,65 @@ fn convert_wkt2_geodetic_crs() {
     // Geocentric crs is not supported
     assert!(crate::wkt_to_projstring(fixtures::WKT2_2019_GEODCRS_GEOCENTRIC).is_err());
 }
+
+#[test]
+fn convert_esri_wkt1() {
+    setup();
+    // ESRI WKT1 (projinfo -o WKT1_ESRI, PROJ 9.4.0)
+    for (wkt, projstr) in [
+        // EPSG:3035, LAEA: ESRI parameter names
+        (
+            r#"PROJCS["ETRS_1989_LAEA",GEOGCS["GCS_ETRS_1989",DATUM["D_ETRS_1989",SPHEROID["GRS_1980",6378137.0,298.257222101]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433]],PROJECTION["Lambert_Azimuthal_Equal_Area"],PARAMETER["False_Easting",4321000.0],PARAMETER["False_Northing",3210000.0],PARAMETER["Central_Meridian",10.0],PARAMETER["Latitude_Of_Origin",52.0],UNIT["Meter",1.0]]"#,
+            "+proj=laea +x_0=4321000.0 +y_0=3210000.0 +lon_0=10.0 +lat_0=52.0 +units=m +a=6378137.0 +rf=298.257222101 +towgs84=0,0,0,0,0,0,0",
+        ),
+        // EPSG:2154, Lambert_Conformal_Conic with 2 standard parallels: LCC 2SP
+        (
+            r#"PROJCS["RGF_1993_Lambert_93",GEOGCS["GCS_RGF_1993",DATUM["D_RGF_1993",SPHEROID["GRS_1980",6378137.0,298.257222101]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433]],PROJECTION["Lambert_Conformal_Conic"],PARAMETER["False_Easting",700000.0],PARAMETER["False_Northing",6600000.0],PARAMETER["Central_Meridian",3.0],PARAMETER["Standard_Parallel_1",49.0],PARAMETER["Standard_Parallel_2",44.0],PARAMETER["Latitude_Of_Origin",46.5],UNIT["Meter",1.0]]"#,
+            "+proj=lcc +x_0=700000.0 +y_0=6600000.0 +lon_0=3.0 +lat_1=49.0 +lat_2=44.0 +lat_0=46.5 +units=m +a=6378137.0 +rf=298.257222101 +towgs84=0,0,0,0,0,0,0",
+        ),
+        // EPSG:27572, Lambert_Conformal_Conic with 1 standard parallel: LCC 1SP
+        (
+            r#"PROJCS["NTF_Paris_Lambert_Zone_II",GEOGCS["GCS_NTF_Paris",DATUM["Nouvelle_Triangulation_Francaise_(Paris)",SPHEROID["Clarke_1880_IGN",6378249.2,293.466021293627]],PRIMEM["Paris",2.33722917],UNIT["Grad",0.0157079632679489]],PROJECTION["Lambert_Conformal_Conic"],PARAMETER["False_Easting",600000.0],PARAMETER["False_Northing",2200000.0],PARAMETER["Central_Meridian",0.0],PARAMETER["Standard_Parallel_1",52.0],PARAMETER["Scale_Factor",0.99987742],PARAMETER["Latitude_Of_Origin",52.0],UNIT["Meter",1.0]]"#,
+            "+proj=lcc +x_0=600000.0 +y_0=2200000.0 +lon_0=0 +k_0=0.99987742 +lat_1=46.799999999999805 +lat_0=46.799999999999805 +units=m +a=6378249.2 +rf=293.466021293627 +towgs84=0,0,0,0,0,0,0 +pm=2.33722917",
+        ),
+        // EPSG:3031, Stereographic_South_Pole: Polar Stereographic variant B
+        (
+            r#"PROJCS["WGS_1984_Antarctic_Polar_Stereographic",GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137.0,298.257223563]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433]],PROJECTION["Stereographic_South_Pole"],PARAMETER["False_Easting",0.0],PARAMETER["False_Northing",0.0],PARAMETER["Central_Meridian",0.0],PARAMETER["Standard_Parallel_1",-71.0],UNIT["Meter",1.0]]"#,
+            "+proj=stere +lat_0=-90 +x_0=0.0 +y_0=0.0 +lon_0=0.0 +lat_ts=-71.0 +units=m +a=6378137.0 +rf=298.257223563 +towgs84=0,0,0,0,0,0,0",
+        ),
+        // EPSG:3857, Mercator_Auxiliary_Sphere: Popular Visualisation Pseudo Mercator
+        (
+            r#"PROJCS["WGS_1984_Web_Mercator_Auxiliary_Sphere",GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137.0,298.257223563]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433]],PROJECTION["Mercator_Auxiliary_Sphere"],PARAMETER["False_Easting",0.0],PARAMETER["False_Northing",0.0],PARAMETER["Central_Meridian",0.0],PARAMETER["Standard_Parallel_1",0.0],PARAMETER["Auxiliary_Sphere_Type",0.0],UNIT["Meter",1.0]]"#,
+            "+proj=webmerc +x_0=0.0 +y_0=0.0 +lon_0=0.0 +units=m +a=6378137.0 +rf=298.257223563 +towgs84=0,0,0,0,0,0,0",
+        ),
+    ] {
+        assert_eq!(crate::wkt_to_projstring(wkt).unwrap(), projstr, "{wkt}");
+    }
+
+    // ESRI parameter name for central meridian
+    let robinson = concat!(
+        r#"PROJCS["Robinson",GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984","#,
+        r#"SPHEROID["WGS_1984",6378137.0,298.257223563]],PRIMEM["Greenwich",0.0],"#,
+        r#"UNIT["Degree",0.0174532925199433]],PROJECTION["Robinson"],"#,
+        r#"PARAMETER["False_Easting",0.0],PARAMETER["False_Northing",0.0],"#,
+        r#"PARAMETER["Central_Meridian",150.0],UNIT["Meter",1.0]]"#,
+    );
+    assert_eq!(
+        crate::wkt_to_projstring(robinson).unwrap(),
+        concat!(
+            "+proj=robin +x_0=0.0 +y_0=0.0 +lon_0=150.0 +units=m +a=6378137.0",
+            " +rf=298.257223563 +towgs84=0,0,0,0,0,0,0",
+        ),
+    );
+
+    // Only the WGS84 semi-major axis auxiliary sphere is supported
+    let aux_sphere = concat!(
+        r#"PROJCS["Mercator",GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984","#,
+        r#"SPHEROID["WGS_1984",6378137.0,298.257223563]],PRIMEM["Greenwich",0.0],"#,
+        r#"UNIT["Degree",0.0174532925199433]],PROJECTION["Mercator_Auxiliary_Sphere"],"#,
+        r#"PARAMETER["False_Easting",0.0],PARAMETER["False_Northing",0.0],"#,
+        r#"PARAMETER["Central_Meridian",0.0],PARAMETER["Standard_Parallel_1",0.0],"#,
+        r#"PARAMETER["Auxiliary_Sphere_Type",2.0],UNIT["Meter",1.0]]"#,
+    );
+    assert!(crate::wkt_to_projstring(aux_sphere).is_err());
+}

@@ -3,7 +3,7 @@
 //!
 use crate::builder::parse_number;
 use crate::consts::{Wkt2Const, methods};
-use crate::errors::Result;
+use crate::errors::{Error, Result};
 use crate::model::{Parameter, Projection, Unit};
 use crate::params::{self, ParamMapping};
 
@@ -118,20 +118,24 @@ mod parameters {
         &params::ELLIPSOID_SCALE_FACTOR,
     ];
 
-    pub const AEA: [&ParamMapping; 6] = [
+    pub const AEA: [&ParamMapping; 8] = [
         &params::LAT_FALSE_ORIGIN_LAT_OF_CENTER,
         &params::LONG_FALSE_ORIGIN_LONG_OF_CENTER,
         &params::LATITUDE_1ST_STD_PARALLEL,
         &params::LATITUDE_2ND_STD_PARALLEL,
         &params::FALSE_EASTING_ORIGIN,
         &params::FALSE_NORTHING_ORIGIN,
+        &params::ESRI_LATITUDE_OF_ORIGIN,
+        &params::ESRI_CENTRAL_MERIDIAN,
     ];
 
-    pub const LAEA: [&ParamMapping; 4] = [
+    pub const LAEA: [&ParamMapping; 6] = [
         &params::LAT_NAT_LAT_CENTER,
         &params::LONG_NAT_LONG_CENTER,
         &params::FALSE_EASTING,
         &params::FALSE_NORTHING,
+        &params::ESRI_LATITUDE_OF_ORIGIN,
+        &params::ESRI_CENTRAL_MERIDIAN,
     ];
 
     pub const MERC_1SP: [&ParamMapping; 5] = [
@@ -149,11 +153,12 @@ mod parameters {
         &params::FALSE_NORTHING,
     ];
 
-    pub const POLAR_STEREO: [&ParamMapping; 4] = [
+    pub const POLAR_STEREO: [&ParamMapping; 5] = [
         &params::LAT_STD_PARALLEL,
         &params::LONG_ORIGIN,
         &params::FALSE_EASTING,
         &params::FALSE_NORTHING,
+        &params::ESRI_STANDARD_PARALLEL_1_LAT_TS,
     ];
 
     pub const OBLIQUE_STEREO: [&ParamMapping; 5] = [
@@ -164,10 +169,11 @@ mod parameters {
         &params::FALSE_NORTHING,
     ];
 
-    pub const LONG_NAT_ORIGIN_LONGITUDE_CENTRE: [&ParamMapping; 3] = [
+    pub const LONG_NAT_ORIGIN_LONGITUDE_CENTRE: [&ParamMapping; 4] = [
         &params::LONG_NAT_LONG_CENTER,
         &params::FALSE_EASTING,
         &params::FALSE_NORTHING,
+        &params::ESRI_CENTRAL_MERIDIAN,
     ];
 
     pub const KROVAK_PARAMETERS: [&ParamMapping; 7] = [
@@ -231,11 +237,75 @@ pub fn find_method_mapping(
             .find(|m| auth.name == "EPSG" && m.epsg_code == auth.code))
     } else if me.name.eq_ignore_ascii_case(WKT1_POLAR_STEREOGRAPHIC) {
         wkt1_polar_stereographic(&projection.parameters, geod_unit).map(Some)
+    } else if let Some(m) = METHOD_MAPPINGS.iter().find(|m| {
+        m.wkt2_name.eq_ignore_ascii_case(me.name) || m.wkt1_name.eq_ignore_ascii_case(me.name)
+    }) {
+        Ok(Some(m))
     } else {
-        Ok(METHOD_MAPPINGS.iter().find(|m| {
-            m.wkt2_name.eq_ignore_ascii_case(me.name) || m.wkt1_name.eq_ignore_ascii_case(me.name)
-        }))
+        esri_method_mapping(me.name, &projection.parameters)
     }
+}
+
+fn get_method_mapping(method: &Wkt2Const) -> &'static MethodMapping {
+    METHOD_MAPPINGS.iter().find(|m| m.is(method)).unwrap()
+}
+
+// ESRI WKT1 projection names
+// See PROJ /src/iso19111/operation/esriparammappings.cpp
+const ESRI_METHODS: [(&str, &Wkt2Const); 8] = [
+    ("Albers", &methods::ALBERS_EQUAL_AREA),
+    ("Double_Stereographic", &methods::OBLIQUE_STEREOGRAPHIC),
+    ("Gauss_Kruger", &methods::TRANSVERSE_MERCATOR),
+    ("Mercator", &methods::MERCATOR_VARIANT_B),
+    (
+        "Mercator_Auxiliary_Sphere",
+        &methods::POPULAR_VISUALISATION_PSEUDO_MERCATOR,
+    ),
+    (
+        "Polar_Stereographic_Variant_A",
+        &methods::POLAR_STEREOGRAPHIC_VARIANT_A,
+    ),
+    (
+        "Stereographic_North_Pole",
+        &methods::POLAR_STEREOGRAPHIC_VARIANT_B,
+    ),
+    (
+        "Stereographic_South_Pole",
+        &methods::POLAR_STEREOGRAPHIC_VARIANT_B,
+    ),
+];
+
+/// Retrieve method mapping from ESRI WKT1 projection name
+fn esri_method_mapping(name: &str, params: &[Parameter]) -> Result<Option<&'static MethodMapping>> {
+    let find_param = |param: &str| params.iter().find(|p| p.name.eq_ignore_ascii_case(param));
+
+    let method = if name.eq_ignore_ascii_case("Lambert_Conformal_Conic") {
+        // LCC 2SP if there is a second standard parallel
+        if find_param("Standard_Parallel_2").is_some() {
+            &methods::LAMBERT_CONIC_CONFORMAL_2SP
+        } else {
+            &methods::LAMBERT_CONIC_CONFORMAL_1SP
+        }
+    } else if let Some((_, method)) = ESRI_METHODS
+        .iter()
+        .find(|(n, _)| n.eq_ignore_ascii_case(name))
+    {
+        *method
+    } else {
+        return Ok(None);
+    };
+
+    // Only the sphere with the WGS84 semi-major axis
+    // is supported (as in PROJ)
+    if let Some(p) = find_param("Auxiliary_Sphere_Type")
+        && parse_number(p.value)? != 0.0
+    {
+        return Err(Error::Wkt(
+            format!("Unsupported Auxiliary_Sphere_Type {}", p.value).into(),
+        ));
+    }
+
+    Ok(Some(get_method_mapping(method)))
 }
 
 /// WKT1 'Polar_Stereographic' is used for both variants:
@@ -266,5 +336,5 @@ fn wkt1_polar_stereographic(
         None => &methods::POLAR_STEREOGRAPHIC_VARIANT_A,
     };
 
-    Ok(METHOD_MAPPINGS.iter().find(|m| m.is(variant)).unwrap())
+    Ok(get_method_mapping(variant))
 }
