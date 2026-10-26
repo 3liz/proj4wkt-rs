@@ -1006,3 +1006,87 @@ fn convert_krovak() {
         format!("{projstr} +axis=swu")
     );
 }
+
+#[test]
+fn convert_parameter_unit() {
+    setup();
+    // Parameter unit with UNIT keyword has the type of the parameter:
+    // EPSG:27572 WKT2 2019 (projinfo, PROJ 9.4.0) with UNIT keyword only
+    let wkt = r#"
+        PROJCRS["NTF (Paris) / Lambert zone II",
+            BASEGEOGCRS["NTF (Paris)",
+                DATUM["Nouvelle Triangulation Francaise (Paris)",
+                    ELLIPSOID["Clarke 1880 (IGN)",6378249.2,293.466021293627,
+                        UNIT["metre",1]]],
+                PRIMEM["Paris",2.5969213,
+                    UNIT["grad",0.0157079632679489]],
+                ID["EPSG",4807]],
+            CONVERSION["Lambert zone II",
+                METHOD["Lambert Conic Conformal (1SP)",
+                    ID["EPSG",9801]],
+                PARAMETER["Latitude of natural origin",52,
+                    UNIT["grad",0.0157079632679489],
+                    ID["EPSG",8801]],
+                PARAMETER["Longitude of natural origin",0,
+                    UNIT["grad",0.0157079632679489],
+                    ID["EPSG",8802]],
+                PARAMETER["Scale factor at natural origin",0.99987742,
+                    UNIT["unity",1],
+                    ID["EPSG",8805]],
+                PARAMETER["False easting",600000,
+                    UNIT["metre",1],
+                    ID["EPSG",8806]],
+                PARAMETER["False northing",2200000,
+                    UNIT["metre",1],
+                    ID["EPSG",8807]]],
+            CS[Cartesian,2],
+                AXIS["easting (X)",east,
+                    ORDER[1],
+                    UNIT["metre",1]],
+                AXIS["northing (Y)",north,
+                    ORDER[2],
+                    UNIT["metre",1]],
+            USAGE[
+                SCOPE["Engineering survey, topographic mapping."],
+                AREA["France mainland onshore between 50.5 grads and 53.5 grads North (45°27'N to 48°09'N). Also used over all onshore mainland France."],
+                BBOX[42.33,-4.87,51.14,8.23]],
+            ID["EPSG",27572]]"#;
+    assert_eq!(
+        crate::wkt_to_projstring(wkt).unwrap(),
+        concat!(
+            "+proj=lcc +lat_1=46.799999999999805 +lat_0=46.799999999999805 +lon_0=0",
+            " +k_0=0.99987742 +x_0=600000 +y_0=2200000 +units=m +a=6378249.2",
+            " +rf=293.466021293627 +towgs84=0,0,0,0,0,0,0 +pm=2.3372291699999908",
+        ),
+    );
+
+    const BASE: &str = concat!(
+        r#"PROJCRS["test",BASEGEOGCRS["WGS 84",DATUM["WGS_1984","#,
+        r#"ELLIPSOID["WGS 84",6378137,298.257223563]]],CONVERSION["test","#,
+        r#"METHOD["Transverse Mercator",ID["EPSG",9807]],"#,
+    );
+
+    // Linear parameter with UNIT keyword
+    let wkt = format!(
+        concat!(
+            "{}",
+            r#"PARAMETER["Longitude of natural origin",-75,UNIT["degree",0.0174532925199433]],"#,
+            r#"PARAMETER["False easting",984250,UNIT["US survey foot",0.304800609601219]]]]"#,
+        ),
+        BASE
+    );
+    assert_eq!(
+        crate::wkt_to_projstring(&wkt).unwrap(),
+        concat!(
+            "+proj=tmerc +lon_0=-75 +x_0=299999.9999999998 +units=m +a=6378137",
+            " +rf=298.257223563 +towgs84=0,0,0,0,0,0,0",
+        ),
+    );
+
+    // Unit of the wrong type
+    let wkt = format!(
+        r#"{}PARAMETER["Longitude of natural origin",-75,LENGTHUNIT["metre",1]]]]"#,
+        BASE
+    );
+    assert!(crate::wkt_to_projstring(&wkt).is_err());
+}

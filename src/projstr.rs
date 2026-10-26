@@ -188,22 +188,39 @@ impl<T: Write> Formatter<T> {
             w: &mut W,
             name: &str,
             p: &Parameter,
+            unit_type: &UnitType,
             ref_unit: Option<&Unit>,
         ) -> Result<()> {
+            // A parameter unit of unknown type (WKT1 'UNIT' keyword)
+            // has the type of the parameter
+            if let Some(unit) = &p.unit
+                && unit.unit_type != UnitType::Unknown
+                && unit.unit_type != *unit_type
+            {
+                return Err(Error::Wkt(
+                    format!(
+                        "Unexpected {:?} unit for parameter {}",
+                        unit.unit_type, p.name
+                    )
+                    .into(),
+                ));
+            }
             // See https://docs.ogc.org/is/12-063r5/12-063r5.html#66
             // for constraint on parameter's unit
             if let Some(unit) = p.unit.as_ref().or(ref_unit) {
-                if unit.unit_type == UnitType::Linear {
-                    if unit.factor != 1.0 {
+                match unit_type {
+                    UnitType::Linear if unit.factor != 1.0 => {
                         return parse_number(p.value).and_then(|value| {
                             write!(w, " +{}={}", name, value * unit.factor).map_err(Error::from)
                         });
                     }
-                } else if !unit.name.eq_ignore_ascii_case("degree") {
-                    return parse_number(p.value).and_then(|value| {
-                        write!(w, " +{}={}", name, (value * unit.factor).to_degrees())
-                            .map_err(Error::from)
-                    });
+                    UnitType::Angular if !unit.name.eq_ignore_ascii_case("degree") => {
+                        return parse_number(p.value).and_then(|value| {
+                            write!(w, " +{}={}", name, (value * unit.factor).to_degrees())
+                                .map_err(Error::from)
+                        });
+                    }
+                    _ => (),
                 }
             }
             write!(w, " +{}={}", name, p.value).map_err(Error::from)
@@ -214,8 +231,12 @@ impl<T: Write> Formatter<T> {
             mapping
                 .find_proj_params(p)
                 .try_for_each(|pm| match pm.unit_type {
-                    UnitType::Linear => write_unit(&mut self.w, pm.proj_name, p, axis_unit),
-                    UnitType::Angular => write_unit(&mut self.w, pm.proj_name, p, geod_unit),
+                    UnitType::Linear => {
+                        write_unit(&mut self.w, pm.proj_name, p, &pm.unit_type, axis_unit)
+                    }
+                    UnitType::Angular => {
+                        write_unit(&mut self.w, pm.proj_name, p, &pm.unit_type, geod_unit)
+                    }
                     _ => write!(self.w, " +{}={}", pm.proj_name, p.value).map_err(Error::from),
                 })
         })?;
