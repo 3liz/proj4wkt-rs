@@ -121,30 +121,23 @@ impl<T: Write> Formatter<T> {
     // Since we do not use database, output ellipsoid parameters
     // and get rid of ellipsoid name and authority
     fn add_ellipsoid(&mut self, ellps: &Ellipsoid) -> Result<()> {
-        let a = ellps.a;
-        let rf = ellps.rf;
         // Check units
-        if let Some(unit) = &ellps.unit {
-            match unit.unit_type {
-                UnitType::Linear => {
-                    if unit.factor != 1.0 {
-                        // Convert to meter, inverse flattening
-                        // is unitless
-                        let a = parse_number(a)? * unit.factor;
-                        write!(self.w, " +a={a} +rf={rf}")?;
-                    } else {
-                        write!(self.w, " +a={a} +rf={rf}")?;
-                    }
-                }
-                _ => {
-                    // XXX How to handle this ?
-                    return Err(Error::Wkt(
-                        format!("Unexpected {:?} unit for ellipsoid", unit.unit_type).into(),
-                    ));
-                }
+        let a = match &ellps.unit {
+            Some(unit) if unit.unit_type != UnitType::Linear => {
+                // XXX How to handle this ?
+                return Err(Error::Wkt(
+                    format!("Unexpected {:?} unit for ellipsoid", unit.unit_type).into(),
+                ));
             }
+            // Convert to meter
+            Some(unit) if unit.factor != 1.0 => (parse_number(ellps.a)? * unit.factor).to_string(),
+            _ => ellps.a.to_string(),
+        };
+        // Inverse flattening is unitless, and 0 defines a sphere
+        if parse_number(ellps.rf)? == 0.0 {
+            write!(self.w, " +R={a}")?;
         } else {
-            write!(self.w, " +a={a} +rf={rf}")?;
+            write!(self.w, " +a={a} +rf={}", ellps.rf)?;
         }
         Ok(())
     }

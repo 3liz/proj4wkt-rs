@@ -815,3 +815,70 @@ fn convert_esri_wkt1() {
     );
     assert!(crate::wkt_to_projstring(aux_sphere).is_err());
 }
+
+#[test]
+fn convert_sphere() {
+    setup();
+    // Inverse flattening of 0 defines a sphere (projinfo, PROJ 9.4.0)
+    let epsg_3408 = r#"
+            PROJCS["NSIDC EASE-Grid North",
+                GEOGCS["NSIDC Authalic Sphere",
+                    DATUM["NSIDC_International_1924_Authalic_Sphere",
+                        SPHEROID["International 1924 Authalic Sphere",6371228,0,
+                            AUTHORITY["EPSG","7057"]],
+                        AUTHORITY["EPSG","1360"]],
+                    PRIMEM["Greenwich",0,
+                        AUTHORITY["EPSG","8901"]],
+                    UNIT["degree",0.0174532925199433,
+                        AUTHORITY["EPSG","9122"]],
+                    AUTHORITY["EPSG","10346"]],
+                PROJECTION["Lambert_Azimuthal_Equal_Area"],
+                PARAMETER["latitude_of_center",90],
+                PARAMETER["longitude_of_center",0],
+                PARAMETER["false_easting",0],
+                PARAMETER["false_northing",0],
+                UNIT["metre",1,
+                    AUTHORITY["EPSG","9001"]],
+                AUTHORITY["EPSG","3408"]]"#;
+    assert_eq!(
+        crate::wkt_to_projstring(epsg_3408).unwrap(),
+        concat!(
+            "+proj=laea +lat_0=90 +lon_0=0 +x_0=0 +y_0=0 +units=m +R=6371228",
+            " +towgs84=0,0,0,0,0,0,0",
+        ),
+    );
+
+    let epsg_4047 = r#"
+            GEOGCRS["Unspecified datum based upon the GRS 1980 Authalic Sphere",
+                DATUM["Not specified (based on GRS 1980 Authalic Sphere)",
+                    ELLIPSOID["GRS 1980 Authalic Sphere",6371007,0,
+                        LENGTHUNIT["metre",1]]],
+                PRIMEM["Greenwich",0,
+                    ANGLEUNIT["degree",0.0174532925199433]],
+                CS[ellipsoidal,2],
+                    AXIS["geodetic latitude (Lat)",north,
+                        ORDER[1],
+                        ANGLEUNIT["degree",0.0174532925199433]],
+                    AXIS["geodetic longitude (Lon)",east,
+                        ORDER[2],
+                        ANGLEUNIT["degree",0.0174532925199433]],
+                USAGE[
+                    SCOPE["Statistical analysis."],
+                    AREA["Not specified."],
+                    BBOX[-90,-180,90,180]],
+                ID["EPSG",4047]]"#;
+    assert_eq!(
+        crate::wkt_to_projstring(epsg_4047).unwrap(),
+        "+proj=longlat +R=6371007 +towgs84=0,0,0,0,0,0,0",
+    );
+
+    // Radius is converted to meter
+    let feet = concat!(
+        r#"GEOGCS["test",DATUM["test",SPHEROID["sphere",20000000,0,UNIT["foot",0.3048]]],"#,
+        r#"UNIT["degree",0.0174532925199433]]"#,
+    );
+    assert_eq!(
+        crate::wkt_to_projstring(feet).unwrap(),
+        "+proj=longlat +R=6096000 +towgs84=0,0,0,0,0,0,0",
+    );
+}
