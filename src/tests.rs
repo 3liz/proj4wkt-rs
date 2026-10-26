@@ -1308,3 +1308,53 @@ fn convert_non_epsg_authority() {
         );
     }
 }
+
+#[test]
+fn report_wkt_errors() {
+    use crate::errors::Error;
+    setup();
+    // Processor errors are reported, the innermost one first
+    for (wkt, message) in [
+        (
+            r#"GEOGCS["x",UNIT["degree",0.0174532925199433]]"#,
+            "Missing DATUM for geodetic crs",
+        ),
+        (
+            concat!(
+                r#"PROJCS["x",GEOGCS["x",DATUM["d"],UNIT["degree",0.0174532925199433]],"#,
+                r#"PROJECTION["Transverse_Mercator"],UNIT["metre",1]]"#,
+            ),
+            "Missing ellipsoid for DATUM",
+        ),
+        (
+            concat!(
+                r#"GEOGCS["x",DATUM["d",SPHEROID["s",6378137,298.257223563],"#,
+                r#"TOWGS84[1,2]],UNIT["degree",0.0174532925199433]]"#,
+            ),
+            "Wrong number of parameters for TOWGS84",
+        ),
+        (
+            fixtures::WKT2_2019_GEODCRS_GEOCENTRIC,
+            "Geocentric crs is not supported",
+        ),
+    ] {
+        match crate::wkt_to_projstring(wkt) {
+            Err(Error::Wkt(msg)) => assert_eq!(msg, message, "{wkt}"),
+            other => panic!("Expected Wkt error for {wkt}, got {other:?}"),
+        }
+    }
+
+    // Syntax errors
+    for wkt in [
+        concat!(
+            r#"GEOGCS["x",DATUM["d",SPHEROID["s",6378137,298.257223563]],"#,
+            r#"UNIT["degree",0.0174532925199433]"#,
+        ),
+        "not a wkt",
+    ] {
+        assert!(
+            matches!(crate::wkt_to_projstring(wkt), Err(Error::Parse)),
+            "{wkt}"
+        );
+    }
+}

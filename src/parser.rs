@@ -18,7 +18,12 @@ use nom::{
 use crate::errors::{Error, Result};
 use crate::log;
 
+use std::cell::RefCell;
 use std::fmt::Debug;
+
+// First error returned by the processor: it is the cause of
+// the parse failure, parent nodes fail as a consequence
+type ErrorSlot<E> = RefCell<Option<E>>;
 
 /// Parsed WKT attributes
 #[derive(Debug, PartialEq)]
@@ -61,10 +66,12 @@ pub trait Processor<'a> {
 pub fn parse<'a, P, O>(i: &'a str, p: &P) -> Result<O>
 where
     P: Processor<'a, Output = O>,
+    Error: From<P::Err>,
 {
-    all_consuming(|i: &'a str| object(i, p, 0))
+    let error = ErrorSlot::default();
+    all_consuming(|i: &'a str| object(i, p, 0, &error))
         .parse(i.trim())
-        .map_err(|_| Error::Parse)
+        .map_err(|_| error.take().map_or(Error::Parse, Error::from))
         .map(|(_, value)| match value {
             Attribute::Keyword(_, out) => out,
             _ => unreachable!(),
@@ -104,20 +111,26 @@ fn keyword(i: &str) -> IResult<&str, &str> {
     .parse(i)
 }
 
-fn log_failure<E: Debug, T>(_err: E) -> IResult<&'static str, T> {
-    log::error!("Wkt failure {_err:?}");
+fn processor_failure<E: Debug, T>(err: E, error: &ErrorSlot<E>) -> IResult<&'static str, T> {
+    log::error!("Wkt failure {err:?}");
+    error.borrow_mut().get_or_insert(err);
     cut(fail()).parse("")
 }
 
 // Process object attribute
-fn object<'a, P, O>(i: &'a str, p: &P, depth: usize) -> IResult<&'a str, Attribute<'a, O>>
+fn object<'a, P, O>(
+    i: &'a str,
+    p: &P,
+    depth: usize,
+    error: &ErrorSlot<P::Err>,
+) -> IResult<&'a str, Attribute<'a, O>>
 where
     P: Processor<'a, Output = O>,
 {
     terminated(keyword, trim_left(char('[')))
         .parse(i.trim_start())
         .and_then(|(rest, key)| {
-            attribute_list(rest, p, depth, key).and_then(|(rest, node)| {
+            attribute_list(rest, p, depth, key, error).and_then(|(rest, node)| {
                 match cut(trim_left(char(']'))).parse(rest) {
                     Ok((rest, _)) => Ok((rest, node)),
                     Err(err) => {
@@ -138,15 +151,18 @@ fn attribute_list<'a, P, O>(
     p: &P,
     depth: usize,
     key: &'a str,
+    error: &ErrorSlot<P::Err>,
 ) -> IResult<&'a str, Attribute<'a, O>>
 where
     P: Processor<'a, Output = O>,
 {
-    let (rest, attr) = attribute(i, p, depth)?;
+    let (rest, attr) = attribute(i, p, depth, error)?;
 
     let mut it = iterator(
         rest,
-        preceded(trim_left(char(',')), |i: &'a str| attribute(i, p, depth)),
+        preceded(trim_left(char(',')), |i: &'a str| {
+            attribute(i, p, depth, error)
+        }),
     );
 
     match p.process(key, depth, std::iter::once(attr).chain(&mut it)) {
@@ -154,7 +170,7 @@ where
             let (rest, _) = it.finish()?;
             Ok((rest, Attribute::Keyword(key, node)))
         }
-        Err(err) => log_failure(err),
+        Err(err) => processor_failure(err, error),
     }
 }
 
@@ -163,12 +179,17 @@ where
 //     keyword attibute_list
 //   | quoted_string
 //   | number
-fn attribute<'a, P, O>(i: &'a str, p: &P, depth: usize) -> IResult<&'a str, Attribute<'a, O>>
+fn attribute<'a, P, O>(
+    i: &'a str,
+    p: &P,
+    depth: usize,
+    error: &ErrorSlot<P::Err>,
+) -> IResult<&'a str, Attribute<'a, O>>
 where
     P: Processor<'a, Output = O>,
 {
     let i = i.trim_start();
-    object(i, p, depth + 1)
+    object(i, p, depth + 1, error)
         .or_else(|_| map(quoted_string, |s| Attribute::Quoted(s)).parse(i))
         .or_else(|_| map(number, |n| Attribute::Number(n)).parse(i))
         .or_else(|_| map(keyword, |l| Attribute::Label(l)).parse(i))
