@@ -426,6 +426,7 @@ fn build_nad83() {
                 }),
             }),
             axis_directions: vec!["EAST", "NORTH"],
+            proj4_extension: None,
         }),
     );
 }
@@ -1363,5 +1364,150 @@ fn report_wkt_errors() {
             matches!(crate::wkt_to_projstring(wkt), Err(Error::Parse)),
             "{wkt}"
         );
+    }
+}
+
+#[test]
+fn convert_proj4rs_projections() {
+    setup();
+    // Projections supported by proj4rs (projinfo, PROJ 9.4.0)
+    for (wkt, projstr) in [
+        // Equidistant Cylindrical (EPSG:4087, WKT1_GDAL)
+        (
+            r#"PROJCS["WGS 84 / World Equidistant Cylindrical",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"]],PROJECTION["Equirectangular"],PARAMETER["standard_parallel_1",0],PARAMETER["central_meridian",0],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],AXIS["Northing",NORTH],AUTHORITY["EPSG","4087"]]"#,
+            "+proj=eqc +lat_ts=0 +lon_0=0 +x_0=0 +y_0=0 +units=m +a=6378137 +rf=298.257223563 +towgs84=0,0,0,0,0,0,0",
+        ),
+        // ESRI Plate Carree (ESRI:54001, WKT1_ESRI)
+        (
+            r#"PROJCS["World_Plate_Carree",GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137.0,298.257223563]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433]],PROJECTION["Plate_Carree"],PARAMETER["False_Easting",0.0],PARAMETER["False_Northing",0.0],PARAMETER["Central_Meridian",0.0],UNIT["Meter",1.0]]"#,
+            "+proj=eqc +x_0=0.0 +y_0=0.0 +lon_0=0.0 +units=m +a=6378137.0 +rf=298.257223563 +towgs84=0,0,0,0,0,0,0",
+        ),
+        // Azimuthal Equidistant (EPSG:27701, WKT1_ESRI)
+        (
+            r#"PROJCS["WGS_84_Equi7_Africa",GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137.0,298.257223563]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433]],PROJECTION["Azimuthal_Equidistant"],PARAMETER["False_Easting",5621452.02],PARAMETER["False_Northing",5990638.423],PARAMETER["Central_Meridian",21.5],PARAMETER["Latitude_Of_Origin",8.5],UNIT["Meter",1.0]]"#,
+            "+proj=aeqd +x_0=5621452.02 +y_0=5990638.423 +lon_0=21.5 +lat_0=8.5 +units=m +a=6378137.0 +rf=298.257223563 +towgs84=0,0,0,0,0,0,0",
+        ),
+        // Guam Projection (EPSG:3993, WKT2_2019)
+        (
+            r#"PROJCRS["Guam 1963 / Guam SPCS",BASEGEOGCRS["Guam 1963",DATUM["Guam 1963",ELLIPSOID["Clarke 1866",6378206.4,294.978698213898,LENGTHUNIT["metre",1]]],PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.0174532925199433]],ID["EPSG",4675]],CONVERSION["Guam SPCS",METHOD["Guam Projection",ID["EPSG",9831]],PARAMETER["Latitude of natural origin",13.4724663527778,ANGLEUNIT["degree",0.0174532925199433],ID["EPSG",8801]],PARAMETER["Longitude of natural origin",144.748750705556,ANGLEUNIT["degree",0.0174532925199433],ID["EPSG",8802]],PARAMETER["False easting",50000,LENGTHUNIT["metre",1],ID["EPSG",8806]],PARAMETER["False northing",50000,LENGTHUNIT["metre",1],ID["EPSG",8807]]],CS[Cartesian,2],AXIS["easting (X)",east,ORDER[1],LENGTHUNIT["metre",1]],AXIS["northing (Y)",north,ORDER[2],LENGTHUNIT["metre",1]],USAGE[SCOPE["Cadastre, engineering survey, topographic mapping (large and medium scale)."],AREA["Guam - onshore."],BBOX[13.18,144.58,13.7,145.01]],ID["EPSG",3993]]"#,
+            "+proj=aeqd +lat_0=13.4724663527778 +lon_0=144.748750705556 +x_0=50000 +y_0=50000 +units=m +a=6378206.4 +rf=294.978698213898 +guam",
+        ),
+        // Miller Cylindrical (ESRI:54003, WKT1_ESRI)
+        (
+            r#"PROJCS["World_Miller_Cylindrical",GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137.0,298.257223563]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433]],PROJECTION["Miller_Cylindrical"],PARAMETER["False_Easting",0.0],PARAMETER["False_Northing",0.0],PARAMETER["Central_Meridian",0.0],UNIT["Meter",1.0]]"#,
+            "+proj=mill +x_0=0.0 +y_0=0.0 +lon_0=0.0 +units=m +a=6378137.0 +rf=298.257223563 +towgs84=0,0,0,0,0,0,0",
+        ),
+        // Lambert Cylindrical Equal Area (EPSG:6933, WKT1_GDAL)
+        (
+            r#"PROJCS["WGS 84 / NSIDC EASE-Grid 2.0 Global",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4326"]],PROJECTION["Cylindrical_Equal_Area"],PARAMETER["standard_parallel_1",30],PARAMETER["central_meridian",0],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],AXIS["Northing",NORTH],AUTHORITY["EPSG","6933"]]"#,
+            "+proj=cea +lat_ts=30 +lon_0=0 +x_0=0 +y_0=0 +units=m +a=6378137 +rf=298.257223563 +towgs84=0,0,0,0,0,0,0",
+        ),
+        // ESRI Behrmann: standard parallel of 30° (ESRI:53017, WKT1_ESRI)
+        (
+            r#"PROJCS["Sphere_Behrmann",GEOGCS["GCS_Sphere",DATUM["D_Sphere",SPHEROID["Sphere",6371000.0,0.0]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433]],PROJECTION["Behrmann"],PARAMETER["False_Easting",0.0],PARAMETER["False_Northing",0.0],PARAMETER["Central_Meridian",0.0],UNIT["Meter",1.0]]"#,
+            "+proj=cea +x_0=0.0 +y_0=0.0 +lon_0=0.0 +units=m +R=6371000.0 +lat_ts=30",
+        ),
+        // American Polyconic (EPSG:29101, WKT1_ESRI)
+        (
+            r#"PROJCS["SAD_1969_Brazil_Polyconic",GEOGCS["GCS_South_American_1969",DATUM["D_South_American_1969",SPHEROID["GRS_1967_Truncated",6378160.0,298.25]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433]],PROJECTION["Polyconic"],PARAMETER["False_Easting",5000000.0],PARAMETER["False_Northing",10000000.0],PARAMETER["Central_Meridian",-54.0],PARAMETER["Latitude_Of_Origin",0.0],UNIT["Meter",1.0]]"#,
+            "+proj=poly +x_0=5000000.0 +y_0=10000000.0 +lon_0=-54.0 +lat_0=0.0 +units=m +a=6378160.0 +rf=298.25",
+        ),
+        // ESRI Orthographic is spherical (ESRI:102035, WKT1_ESRI)
+        (
+            r#"PROJCS["North_Pole_Orthographic",GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137.0,298.257223563]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433]],PROJECTION["Orthographic"],PARAMETER["False_Easting",0.0],PARAMETER["False_Northing",0.0],PARAMETER["Longitude_Of_Center",0.0],PARAMETER["Latitude_Of_Center",90.0],UNIT["Meter",1.0]]"#,
+            "+proj=ortho +x_0=0.0 +y_0=0.0 +lon_0=0.0 +lat_0=90.0 +units=m +R=6378137.0 +towgs84=0,0,0,0,0,0,0",
+        ),
+        // Orthographic (Spherical) (ESRI:102035, WKT2_2019)
+        (
+            r#"PROJCRS["North_Pole_Orthographic",BASEGEOGCRS["WGS 84",DATUM["World Geodetic System 1984",ELLIPSOID["WGS 84",6378137,298.257223563,LENGTHUNIT["metre",1]]],PRIMEM["Greenwich",0,ANGLEUNIT["Degree",0.0174532925199433]]],CONVERSION["North_Pole_Orthographic",METHOD["Orthographic (Spherical)"],PARAMETER["Latitude of natural origin",90,ANGLEUNIT["Degree",0.0174532925199433],ID["EPSG",8801]],PARAMETER["Longitude of natural origin",0,ANGLEUNIT["Degree",0.0174532925199433],ID["EPSG",8802]],PARAMETER["False easting",0,LENGTHUNIT["metre",1],ID["EPSG",8806]],PARAMETER["False northing",0,LENGTHUNIT["metre",1],ID["EPSG",8807]]],CS[Cartesian,2],AXIS["(E)",east,ORDER[1],LENGTHUNIT["metre",1]],AXIS["(N)",north,ORDER[2],LENGTHUNIT["metre",1]],USAGE[SCOPE["Not known."],AREA["Northern hemisphere."],BBOX[0,-180,90,180]],ID["ESRI",102035]]"#,
+            "+proj=ortho +lat_0=90 +lon_0=0 +x_0=0 +y_0=0 +units=m +R=6378137 +towgs84=0,0,0,0,0,0,0",
+        ),
+        // Gnomonic (ESRI:102034, WKT1_ESRI)
+        (
+            r#"PROJCS["North_Pole_Gnomonic",GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137.0,298.257223563]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433]],PROJECTION["Gnomonic"],PARAMETER["False_Easting",0.0],PARAMETER["False_Northing",0.0],PARAMETER["Longitude_Of_Center",0.0],PARAMETER["Latitude_Of_Center",90.0],UNIT["Meter",1.0]]"#,
+            "+proj=gnom +x_0=0.0 +y_0=0.0 +lon_0=0.0 +lat_0=90.0 +units=m +a=6378137.0 +rf=298.257223563 +towgs84=0,0,0,0,0,0,0",
+        ),
+        // Cassini-Soldner (EPSG:2066, WKT1_GDAL)
+        (
+            r#"PROJCS["Mount Dillon / Tobago Grid",GEOGCS["Mount Dillon",DATUM["Mount_Dillon",SPHEROID["Clarke 1858",6378293.64520876,294.260676369261,AUTHORITY["EPSG","7007"]],AUTHORITY["EPSG","6157"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4157"]],PROJECTION["Cassini_Soldner"],PARAMETER["latitude_of_origin",11.2521786111111],PARAMETER["central_meridian",-60.6860088888889],PARAMETER["false_easting",187500],PARAMETER["false_northing",180000],UNIT["Clarke's link",0.201166195164,AUTHORITY["EPSG","9039"]],AXIS["Easting",EAST],AXIS["Northing",NORTH],AUTHORITY["EPSG","2066"]]"#,
+            "+proj=cass +lat_0=11.2521786111111 +lon_0=-60.6860088888889 +x_0=37718.6615933 +y_0=36209.9151295 +to_meter=0.201166195164 +a=6378293.64520876 +rf=294.260676369261",
+        ),
+        // Hyperbolic Cassini-Soldner (EPSG:3139, WKT2_2019)
+        (
+            r#"PROJCRS["Vanua Levu 1915 / Vanua Levu Grid",BASEGEOGCRS["Vanua Levu 1915",DATUM["Vanua Levu 1915",ELLIPSOID["Clarke 1880 (international foot)",20926202,293.466307655635,LENGTHUNIT["foot",0.3048]]],PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.0174532925199433]],ID["EPSG",4748]],CONVERSION["Vanua Levu Grid",METHOD["Hyperbolic Cassini-Soldner",ID["EPSG",9833]],PARAMETER["Latitude of natural origin",-16.25,ANGLEUNIT["degree",0.0174532925199433],ID["EPSG",8801]],PARAMETER["Longitude of natural origin",179.333333333333,ANGLEUNIT["degree",0.0174532925199433],ID["EPSG",8802]],PARAMETER["False easting",1251331.8,LENGTHUNIT["link",0.201168],ID["EPSG",8806]],PARAMETER["False northing",1662888.5,LENGTHUNIT["link",0.201168],ID["EPSG",8807]]],CS[Cartesian,2],AXIS["northing (X)",north,ORDER[1],LENGTHUNIT["link",0.201168]],AXIS["easting (Y)",east,ORDER[2],LENGTHUNIT["link",0.201168]],USAGE[SCOPE["Cadastre, engineering survey, topographic mapping (large scale)."],AREA["Fiji - Vanua Levu and Taveuni."],BBOX[-17.07,178.42,-16.1,-179.77]],ID["EPSG",3139]]"#,
+            "+proj=cass +lat_0=-16.25 +lon_0=179.333333333333 +x_0=251727.9155424 +y_0=334519.953768 +to_meter=0.201168 +a=6378306.3696 +rf=293.466307655635 +hyperbolic",
+        ),
+        // Equidistant Conic (ESRI:102031, WKT1_ESRI)
+        (
+            r#"PROJCS["Europe_Equidistant_Conic",GEOGCS["GCS_European_1950",DATUM["D_European_1950",SPHEROID["International_1924",6378388.0,297.0]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433]],PROJECTION["Equidistant_Conic"],PARAMETER["False_Easting",0.0],PARAMETER["False_Northing",0.0],PARAMETER["Central_Meridian",10.0],PARAMETER["Standard_Parallel_1",43.0],PARAMETER["Standard_Parallel_2",62.0],PARAMETER["Latitude_Of_Origin",30.0],UNIT["Meter",1.0]]"#,
+            "+proj=eqdc +x_0=0.0 +y_0=0.0 +lon_0=10.0 +lat_1=43.0 +lat_2=62.0 +lat_0=30.0 +units=m +a=6378388.0 +rf=297.0",
+        ),
+        // Equal Earth (EPSG:8857, WKT1_ESRI)
+        (
+            r#"PROJCS["WGS_1984_Equal_Earth_Greenwich",GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137.0,298.257223563]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433]],PROJECTION["Equal_Earth"],PARAMETER["False_Easting",0.0],PARAMETER["False_Northing",0.0],PARAMETER["Central_Meridian",0.0],UNIT["Meter",1.0]]"#,
+            "+proj=eqearth +x_0=0.0 +y_0=0.0 +lon_0=0.0 +units=m +a=6378137.0 +rf=298.257223563 +towgs84=0,0,0,0,0,0,0",
+        ),
+        // Hotine Oblique Mercator (variant A) (EPSG:3375, WKT1_GDAL)
+        (
+            r#"PROJCS["GDM2000 / Peninsula RSO",GEOGCS["GDM2000",DATUM["Geodetic_Datum_of_Malaysia_2000",SPHEROID["GRS 1980",6378137,298.257222101,AUTHORITY["EPSG","7019"]],AUTHORITY["EPSG","6742"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4742"]],PROJECTION["Hotine_Oblique_Mercator"],PARAMETER["latitude_of_center",4],PARAMETER["longitude_of_center",102.25],PARAMETER["azimuth",323.025796466667],PARAMETER["rectified_grid_angle",323.130102361111],PARAMETER["scale_factor",0.99984],PARAMETER["false_easting",804671],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],AXIS["Northing",NORTH],AUTHORITY["EPSG","3375"]]"#,
+            "+proj=omerc +lat_0=4 +lonc=102.25 +alpha=323.025796466667 +gamma=323.130102361111 +k=0.99984 +x_0=804671 +y_0=0 +units=m +a=6378137 +rf=298.257222101 +towgs84=0,0,0,0,0,0,0 +no_uoff",
+        ),
+        // Hotine Oblique Mercator (variant B): angle to skew grid defaults to azimuth (EPSG:20050, WKT1_ESRI)
+        (
+            r#"PROJCS["NAD_1983_(2011)_Amtrak_NECCS21_(ft)",GEOGCS["GCS_NAD_1983_2011",DATUM["D_NAD_1983_2011",SPHEROID["GRS_1980",6378137.0,298.257222101]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433]],PROJECTION["Hotine_Oblique_Mercator_Azimuth_Center"],PARAMETER["False_Easting",1500000.0],PARAMETER["False_Northing",1500000.0],PARAMETER["Scale_Factor",0.99999],PARAMETER["Azimuth",58.0],PARAMETER["Longitude_Of_Center",-74.0],PARAMETER["Latitude_Of_Center",40.8333333333333],UNIT["foot",0.3048]]"#,
+            "+proj=omerc +x_0=457200 +y_0=457200 +k=0.99999 +alpha=58.0 +lonc=-74.0 +lat_0=40.8333333333333 +gamma=58.0 +to_meter=0.3048 +a=6378137.0 +rf=298.257222101 +towgs84=0,0,0,0,0,0,0",
+        ),
+        // Hotine Oblique Mercator (variant B) with 90° angles: Swiss Oblique Mercator (EPSG:2056, WKT1_GDAL)
+        (
+            r#"PROJCS["CH1903+ / LV95",GEOGCS["CH1903+",DATUM["CH1903+",SPHEROID["Bessel 1841",6377397.155,299.1528128,AUTHORITY["EPSG","7004"]],AUTHORITY["EPSG","6150"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4150"]],PROJECTION["Hotine_Oblique_Mercator_Azimuth_Center"],PARAMETER["latitude_of_center",46.9524055555556],PARAMETER["longitude_of_center",7.43958333333333],PARAMETER["azimuth",90],PARAMETER["rectified_grid_angle",90],PARAMETER["scale_factor",1],PARAMETER["false_easting",2600000],PARAMETER["false_northing",1200000],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],AXIS["Northing",NORTH],AUTHORITY["EPSG","2056"]]"#,
+            "+proj=somerc +lat_0=46.9524055555556 +lon_0=7.43958333333333 +k_0=1 +x_0=2600000 +y_0=1200000 +units=m +a=6377397.155 +rf=299.1528128",
+        ),
+        // Geostationary Satellite (ESRI:102498, WKT1_ESRI)
+        (
+            r#"PROJCS["GOES-16_East_ABI_Fixed_Grid_ITRF2008",GEOGCS["GCS_ITRF_2008",DATUM["D_ITRF_2008",SPHEROID["GRS_1980",6378137.0,298.257222101]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433]],PROJECTION["Geostationary_Satellite"],PARAMETER["False_Easting",0.0],PARAMETER["False_Northing",0.0],PARAMETER["Longitude_Of_Center",-75.0],PARAMETER["Height",35786023.0],PARAMETER["Option",0.0],UNIT["Meter",1.0]]"#,
+            "+proj=geos +x_0=0.0 +y_0=0.0 +lon_0=-75.0 +h=35786023.0 +units=m +a=6378137.0 +rf=298.257222101 +towgs84=0,0,0,0,0,0,0",
+        ),
+        // Vertical Perspective (ESRI:53049, WKT1_ESRI)
+        (
+            r#"PROJCS["Sphere_Vertical_Perspective",GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137.0,298.257223563]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433]],PROJECTION["Vertical_Near_Side_Perspective"],PARAMETER["False_Easting",0.0],PARAMETER["False_Northing",0.0],PARAMETER["Longitude_Of_Center",0.0],PARAMETER["Latitude_Of_Center",0.0],PARAMETER["Height",35800000.0],UNIT["Meter",1.0]]"#,
+            "+proj=nsper +x_0=0.0 +y_0=0.0 +lon_0=0.0 +lat_0=0.0 +h=35800000.0 +units=m +a=6378137.0 +rf=298.257223563 +towgs84=0,0,0,0,0,0,0",
+        ),
+        // Geostationary Satellite (Sweep X): GDAL WKT1 defines the sweep in the PROJ4 extension (custom, WKT1_GDAL)
+        (
+            r#"PROJCS["unknown",GEOGCS["unknown",DATUM["Unknown based on GRS 1980 ellipsoid",SPHEROID["GRS 1980",6378137,298.257222101,AUTHORITY["EPSG","7019"]]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]]],PROJECTION["Geostationary_Satellite"],PARAMETER["central_meridian",13],PARAMETER["satellite_height",35785831],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],AXIS["Northing",NORTH],EXTENSION["PROJ4","+proj=geos +sweep=x +lon_0=13 +h=35785831 +x_0=0 +y_0=0 +ellps=GRS80 +units=m +no_defs"]]"#,
+            "+proj=geos +lon_0=13 +h=35785831 +x_0=0 +y_0=0 +units=m +a=6378137 +rf=298.257222101 +towgs84=0,0,0,0,0,0,0 +sweep=x",
+        ),
+        // PROJ method: 'PROJ tpers' (custom, WKT2_2019)
+        (
+            r#"PROJCRS["unknown",BASEGEOGCRS["unknown",DATUM["Unknown based on GRS 1980 ellipsoid",ELLIPSOID["GRS 1980",6378137,298.257222101,LENGTHUNIT["metre",1],ID["EPSG",7019]]],PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.0174532925199433],ID["EPSG",8901]]],CONVERSION["unknown",METHOD["PROJ tpers"],PARAMETER["h",5500000,LENGTHUNIT["metre",1,ID["EPSG",9001]]],PARAMETER["lat_0",40,ANGLEUNIT["degree",0.0174532925199433,ID["EPSG",9122]]],PARAMETER["lon_0",-100,ANGLEUNIT["degree",0.0174532925199433,ID["EPSG",9122]]],PARAMETER["tilt",20,ANGLEUNIT["degree",0.0174532925199433,ID["EPSG",9122]]],PARAMETER["azi",30,ANGLEUNIT["degree",0.0174532925199433,ID["EPSG",9122]]]],CS[Cartesian,2],AXIS["(E)",east,ORDER[1],LENGTHUNIT["metre",1,ID["EPSG",9001]]],AXIS["(N)",north,ORDER[2],LENGTHUNIT["metre",1,ID["EPSG",9001]]],REMARK["PROJ CRS string: +proj=tpers +h=5500000 +lat_0=40 +lon_0=-100 +tilt=20 +azi=30 +ellps=GRS80"]]"#,
+            "+proj=tpers +h=5500000 +lat_0=40 +lon_0=-100 +tilt=20 +azi=30 +units=m +a=6378137 +rf=298.257222101 +towgs84=0,0,0,0,0,0,0",
+        ),
+        // GDAL WKT1 custom projection: PROJ4 extension (custom, WKT1_GDAL)
+        (
+            r#"PROJCS["unknown",GEOGCS["unknown",DATUM["Unknown based on GRS 1980 ellipsoid",SPHEROID["GRS 1980",6378137,298.257222101,AUTHORITY["EPSG","7019"]]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]]],PROJECTION["custom_proj4"],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],AXIS["Northing",NORTH],EXTENSION["PROJ4","+proj=tpers +h=5500000 +lat_0=40 +lon_0=-100 +tilt=20 +azi=30 +ellps=GRS80"]]"#,
+            "+proj=tpers +h=5500000 +lat_0=40 +lon_0=-100 +tilt=20 +azi=30 +ellps=GRS80",
+        ),
+        // Lambert Conic Conformal (1SP variant B) (EPSG:10258, WKT2_2019)
+        (
+            r#"PROJCRS["GS reconstruction east-orientated",BASEGEOGCRS["GS-IRF",DATUM["Generalstabens System Intermediate Datum",ELLIPSOID["Danish 1876",6377019.27,300,LENGTHUNIT["metre",1]]],PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.0174532925199433]],ID["EPSG",10256]],CONVERSION["Generalstabens System LCC",METHOD["Lambert Conic Conformal (1SP variant B)",ID["EPSG",1102]],PARAMETER["Latitude of natural origin",56,ANGLEUNIT["degree",0.0174532925199433],ID["EPSG",8801]],PARAMETER["Scale factor at natural origin",1,SCALEUNIT["unity",1],ID["EPSG",8805]],PARAMETER["Latitude of false origin",55,ANGLEUNIT["degree",0.0174532925199433],ID["EPSG",8821]],PARAMETER["Longitude of false origin",10.37775,ANGLEUNIT["degree",0.0174532925199433],ID["EPSG",8822]],PARAMETER["Easting at false origin",0,LENGTHUNIT["metre",1],ID["EPSG",8826]],PARAMETER["Northing at false origin",0,LENGTHUNIT["metre",1],ID["EPSG",8827]]],CS[Cartesian,2],AXIS["(E)",east,ORDER[1],LENGTHUNIT["metre",1]],AXIS["(N)",north,ORDER[2],LENGTHUNIT["metre",1]],USAGE[SCOPE["Topographic mapping."],AREA["Denmark - onshore Jutland, Funen, Zealand and Lolland."],BBOX[54.51,8,57.8,12.87]],ID["EPSG",10258]]"#,
+            "+proj=lcc +lat_1=56 +k_0=1 +lat_0=55 +lon_0=10.37775 +x_0=0 +y_0=0 +units=m +a=6377019.27 +rf=300",
+        ),
+        // Transverse Mercator 3D (EPSG:9895, WKT2_2019)
+        (
+            r#"PROJCRS["LUREF / Luxembourg TM (3D)",BASEGEOGCRS["LUREF",DATUM["Luxembourg Reference Frame",ELLIPSOID["International 1924",6378388,297,LENGTHUNIT["metre",1]]],PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.0174532925199433]],ID["EPSG",9893]],CONVERSION["Luxembourg TM (3D)",METHOD["Transverse Mercator 3D",ID["EPSG",1111]],PARAMETER["Latitude of natural origin",49.8333333333333,ANGLEUNIT["degree",0.0174532925199433],ID["EPSG",8801]],PARAMETER["Longitude of natural origin",6.16666666666667,ANGLEUNIT["degree",0.0174532925199433],ID["EPSG",8802]],PARAMETER["Scale factor at natural origin",1,SCALEUNIT["unity",1],ID["EPSG",8805]],PARAMETER["False easting",80000,LENGTHUNIT["metre",1],ID["EPSG",8806]],PARAMETER["False northing",100000,LENGTHUNIT["metre",1],ID["EPSG",8807]]],CS[Cartesian,3],AXIS["northing (X)",north,ORDER[1],LENGTHUNIT["metre",1]],AXIS["easting (Y)",east,ORDER[2],LENGTHUNIT["metre",1]],AXIS["ellipsoidal height (h)",up,ORDER[3],LENGTHUNIT["metre",1]],USAGE[SCOPE["Cadastre, topographic mapping."],AREA["Luxembourg."],BBOX[49.44,5.73,50.19,6.53]],ID["EPSG",9895]]"#,
+            "+proj=tmerc +lat_0=49.8333333333333 +lon_0=6.16666666666667 +k=1 +x_0=80000 +y_0=100000 +units=m +a=6378388 +rf=297",
+        ),
+        // ESRI Transverse_Mercator_Complex (ESRI:102570, WKT1_ESRI)
+        (
+            r#"PROJCS["WGS_1984_Complex_UTM_Zone_20N",GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137.0,298.257223563]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433]],PROJECTION["Transverse_Mercator_Complex"],PARAMETER["False_Easting",500000.0],PARAMETER["False_Northing",0.0],PARAMETER["Central_Meridian",-63.0],PARAMETER["Scale_Factor",0.9996],PARAMETER["Latitude_Of_Origin",0.0],UNIT["Meter",1.0]]"#,
+            "+proj=tmerc +x_0=500000.0 +y_0=0.0 +lon_0=-63.0 +k=0.9996 +lat_0=0.0 +units=m +a=6378137.0 +rf=298.257223563 +towgs84=0,0,0,0,0,0,0",
+        ),
+        // Hotine Oblique Mercator Two Point Natural Origin (custom, WKT1_ESRI)
+        (
+            r#"PROJCS["unknown",GEOGCS["GCS_unknown",DATUM["D_Unknown_based_on_GRS_1980_ellipsoid",SPHEROID["GRS_1980",6378137.0,298.257222101]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433]],PROJECTION["Hotine_Oblique_Mercator_Two_Point_Natural_Origin"],PARAMETER["False_Easting",1000.0],PARAMETER["False_Northing",2000.0],PARAMETER["Latitude_Of_1st_Point",40.0],PARAMETER["Latitude_Of_2nd_Point",50.0],PARAMETER["Scale_Factor",0.9996],PARAMETER["Longitude_Of_1st_Point",-100.0],PARAMETER["Longitude_Of_2nd_Point",-80.0],PARAMETER["Latitude_Of_Center",45.0],UNIT["Meter",1.0]]"#,
+            "+proj=omerc +x_0=1000.0 +y_0=2000.0 +lat_1=40.0 +lat_2=50.0 +k=0.9996 +lon_1=-100.0 +lon_2=-80.0 +lat_0=45.0 +units=m +a=6378137.0 +rf=298.257222101 +towgs84=0,0,0,0,0,0,0",
+        ),
+    ] {
+        assert_eq!(crate::wkt_to_projstring(wkt).unwrap(), projstr, "{wkt}");
     }
 }

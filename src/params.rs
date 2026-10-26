@@ -389,6 +389,49 @@ map!(
     LAT_TS
 );
 
+// Swiss Oblique Mercator
+map!(
+    LON_CENTRE_LON_0,
+    LONGITUDE_PROJECTION_CENTRE,
+    WKT1_LONGITUDE_OF_CENTER,
+    Angular,
+    LON_0
+);
+
+map!(
+    SCALE_FACTOR_INITIAL_LINE_K_0,
+    SCALE_FACTOR_INITIAL_LINE,
+    WKT1_SCALE_FACTOR,
+    Scale,
+    K_0
+);
+
+map!(
+    SATELLITE_HEIGHT,
+    SATELLITE_HEIGHT,
+    "satellite_height",
+    Linear,
+    H
+);
+
+map!(
+    LAT_TOPOCENTRIC_ORIGIN,
+    LATITUDE_TOPOGRAPHIC_ORIGIN,
+    "",
+    Angular,
+    LAT_0
+);
+
+map!(
+    LON_TOPOCENTRIC_ORIGIN,
+    LONGITUDE_TOPOGRAPHIC_ORIGIN,
+    "",
+    Angular,
+    LON_0
+);
+
+map!(VIEWPOINT_HEIGHT, VIEWPOINT_HEIGHT, "", Linear, H);
+
 map!(
     LONG_ORIGIN,
     LONGITUDE_OF_ORIGIN,
@@ -424,4 +467,42 @@ esri!(
     "Standard_Parallel_1",
     Angular,
     LAT_TS
+);
+esri!(
+    ESRI_LATITUDE_OF_CENTER,
+    "Latitude_Of_Center",
+    Angular,
+    LAT_0
+);
+esri!(
+    ESRI_LONGITUDE_OF_CENTER,
+    "Longitude_Of_Center",
+    Angular,
+    LON_0
+);
+esri!(ESRI_HEIGHT, "Height", Linear, H);
+esri!(ESRI_XY_PLANE_ROTATION, "XY_Plane_Rotation", Angular, GAMMA);
+esri!(
+    ESRI_LATITUDE_OF_1ST_POINT,
+    "Latitude_Of_1st_Point",
+    Angular,
+    LAT_1
+);
+esri!(
+    ESRI_LONGITUDE_OF_1ST_POINT,
+    "Longitude_Of_1st_Point",
+    Angular,
+    LON_1
+);
+esri!(
+    ESRI_LATITUDE_OF_2ND_POINT,
+    "Latitude_Of_2nd_Point",
+    Angular,
+    LAT_2
+);
+esri!(
+    ESRI_LONGITUDE_OF_2ND_POINT,
+    "Longitude_Of_2nd_Point",
+    Angular,
+    LON_2
 );

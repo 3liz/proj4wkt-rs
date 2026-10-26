@@ -39,6 +39,8 @@ pub struct Projcs<'a> {
     pub projection: Projection<'a>,
     pub unit: Option<Unit<'a>>,
     pub axis_directions: Vec<&'a str>,
+    // GDAL WKT1 'EXTENSION["PROJ4", ...]'
+    pub proj4_extension: Option<&'a str>,
 }
 
 #[derive(Debug, PartialEq)]

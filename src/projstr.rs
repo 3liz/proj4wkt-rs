@@ -76,7 +76,7 @@ impl<T: Write> Formatter<T> {
 
     fn add_geogcs(&mut self, geogcs: &Geogcs) -> Result<()> {
         self.write_str("+proj=longlat")?;
-        self.add_datum(&geogcs.datum)?;
+        self.add_datum(&geogcs.datum, false)?;
         self.add_prime_meridian(geogcs)
     }
 
@@ -105,8 +105,8 @@ impl<T: Write> Formatter<T> {
         Ok(())
     }
 
-    fn add_datum(&mut self, datum: &Datum) -> Result<()> {
-        self.add_ellipsoid(&datum.ellipsoid)?;
+    fn add_datum(&mut self, datum: &Datum, spherical: bool) -> Result<()> {
+        self.add_ellipsoid(&datum.ellipsoid, spherical)?;
         if !datum.to_wgs84.is_empty() {
             self.write_str(" +towgs84=")?;
             datum.to_wgs84.iter().try_fold("", |sep, n| {
@@ -120,7 +120,7 @@ impl<T: Write> Formatter<T> {
 
     // Since we do not use database, output ellipsoid parameters
     // and get rid of ellipsoid name and authority
-    fn add_ellipsoid(&mut self, ellps: &Ellipsoid) -> Result<()> {
+    fn add_ellipsoid(&mut self, ellps: &Ellipsoid, spherical: bool) -> Result<()> {
         // Check units
         let a = match &ellps.unit {
             Some(unit) if unit.unit_type != UnitType::Linear => {
@@ -136,7 +136,7 @@ impl<T: Write> Formatter<T> {
             _ => ellps.a.to_string(),
         };
         // Inverse flattening is unitless, and 0 defines a sphere
-        if parse_number(ellps.rf)? == 0.0 {
+        if spherical || parse_number(ellps.rf)? == 0.0 {
             write!(self.w, " +R={a}")?;
         } else {
             write!(self.w, " +a={a} +rf={}", ellps.rf)?;
@@ -160,13 +160,21 @@ impl<T: Write> Formatter<T> {
             }
 
             self.add_parameters(&projcs.projection.parameters, mapping, axis_unit, geod_unit)?;
-            self.add_datum(&projcs.geogcs.datum)?;
+            self.add_units(axis_unit)?;
+            self.add_datum(&projcs.geogcs.datum, mapping.is_spherical())?;
             self.add_prime_meridian(&projcs.geogcs)?;
 
             let proj_aux = mapping.proj_aux();
             if !proj_aux.is_empty() {
                 write!(self.w, " {proj_aux}")?;
             }
+            Ok(())
+        } else if let Some(proj_name) = proj_method_name(projcs.projection.method.name) {
+            self.add_proj_method(proj_name, projcs)
+        } else if let Some(proj4) = projcs.proj4_extension {
+            // GDAL WKT1 extension for projections without WKT1
+            // definition (as in PROJ)
+            self.write_str(proj4.trim())?;
             Ok(())
         } else {
             Err(Error::Wkt(
@@ -186,54 +194,6 @@ impl<T: Write> Formatter<T> {
         axis_unit: Option<&Unit>,
         geod_unit: Option<&Unit>,
     ) -> Result<()> {
-        fn write_unit<W: Write>(
-            w: &mut W,
-            name: &str,
-            p: &Parameter,
-            unit_type: &UnitType,
-            ref_unit: Option<&Unit>,
-        ) -> Result<()> {
-            // A parameter unit of unknown type (WKT1 'UNIT' keyword)
-            // has the type of the parameter
-            if let Some(unit) = &p.unit
-                && unit.unit_type != UnitType::Unknown
-                && unit.unit_type != *unit_type
-            {
-                return Err(Error::Wkt(
-                    format!(
-                        "Unexpected {:?} unit for parameter {}",
-                        unit.unit_type, p.name
-                    )
-                    .into(),
-                ));
-            }
-            // See https://docs.ogc.org/is/12-063r5/12-063r5.html#66
-            // for constraint on parameter's unit
-            if let Some(unit) = p.unit.as_ref().or(ref_unit) {
-                match unit_type {
-                    UnitType::Linear if unit.factor != 1.0 => {
-                        return parse_number(p.value).and_then(|value| {
-                            write!(w, " +{}={}", name, round_meters(value * unit.factor))
-                                .map_err(Error::from)
-                        });
-                    }
-                    UnitType::Angular if !is_degree(unit) => {
-                        return parse_number(p.value).and_then(|value| {
-                            write!(
-                                w,
-                                " +{}={}",
-                                name,
-                                round_degrees((value * unit.factor).to_degrees())
-                            )
-                            .map_err(Error::from)
-                        });
-                    }
-                    _ => (),
-                }
-            }
-            write!(w, " +{}={}", name, p.value).map_err(Error::from)
-        }
-
         // Parameters without proj mapping are irrelevant
         params.iter().try_for_each(|p| {
             mapping
@@ -249,14 +209,114 @@ impl<T: Write> Formatter<T> {
                 })
         })?;
 
-        if let Some(unit) = axis_unit && unit.factor != 1.0 {
-            write!(self.w, " +to_meter={}", unit.factor)?;
-        } else {
-            self.write_str(" +units=m")?;
+        // Hotine Oblique Mercator: the angle from the rectified to the skew grid
+        // defaults to the azimuth of the initial line (as in PROJ)
+        if mapping.proj_name() == "omerc" {
+            let find_param = |proj_name: &str| {
+                params.iter().find_map(|p| {
+                    mapping
+                        .find_proj_params(p)
+                        .find(|pm| pm.proj_name == proj_name)
+                        .map(|pm| (p, pm))
+                })
+            };
+            if find_param(params::ANGLE_TO_SKEW_GRID.proj_name).is_none()
+                && let Some((p, pm)) = find_param(params::AZIMUTH.proj_name)
+            {
+                let gamma = params::ANGLE_TO_SKEW_GRID.proj_name;
+                write_unit(&mut self.w, gamma, p, &pm.unit_type, geod_unit)?;
+            }
         }
 
         Ok(())
     }
+
+    fn add_units(&mut self, axis_unit: Option<&Unit>) -> Result<()> {
+        if let Some(unit) = axis_unit
+            && unit.factor != 1.0
+        {
+            write!(self.w, " +to_meter={}", unit.factor)?;
+        } else {
+            self.write_str(" +units=m")?;
+        }
+        Ok(())
+    }
+
+    /// Projection defined by its PROJ name (PROJ WKT2 convention),
+    /// with parameters named after PROJ parameters
+    fn add_proj_method(&mut self, proj_name: &str, projcs: &Projcs) -> Result<()> {
+        write!(self.w, "+proj={proj_name}")?;
+        projcs.projection.parameters.iter().try_for_each(|p| {
+            match p.unit.as_ref().map(|unit| &unit.unit_type) {
+                Some(unit_type @ (UnitType::Linear | UnitType::Angular)) => {
+                    write_unit(&mut self.w, p.name, p, unit_type, None)
+                }
+                _ => write!(self.w, " +{}={}", p.name, p.value).map_err(Error::from),
+            }
+        })?;
+        self.add_units(projcs.unit.as_ref())?;
+        self.add_datum(&projcs.geogcs.datum, false)?;
+        self.add_prime_meridian(&projcs.geogcs)
+    }
+}
+
+// Method defined by its PROJ name: 'PROJ <name>' in PROJ WKT2,
+// 'PROJ_<name>' in ESRI WKT1
+fn proj_method_name(name: &str) -> Option<&str> {
+    name.strip_prefix("PROJ ")
+        .or_else(|| name.strip_prefix("PROJ_"))
+        .filter(|name| {
+            !name.is_empty() && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+        })
+}
+
+// Write parameter converted to proj units: meters or degrees
+fn write_unit<W: Write>(
+    w: &mut W,
+    name: &str,
+    p: &Parameter,
+    unit_type: &UnitType,
+    ref_unit: Option<&Unit>,
+) -> Result<()> {
+    // A parameter unit of unknown type (WKT1 'UNIT' keyword)
+    // has the type of the parameter
+    if let Some(unit) = &p.unit
+        && unit.unit_type != UnitType::Unknown
+        && unit.unit_type != *unit_type
+    {
+        return Err(Error::Wkt(
+            format!(
+                "Unexpected {:?} unit for parameter {}",
+                unit.unit_type, p.name
+            )
+            .into(),
+        ));
+    }
+    // See https://docs.ogc.org/is/12-063r5/12-063r5.html#66
+    // for constraint on parameter's unit
+    if let Some(unit) = p.unit.as_ref().or(ref_unit) {
+        match unit_type {
+            UnitType::Linear if unit.factor != 1.0 => {
+                return parse_number(p.value).and_then(|value| {
+                    write!(w, " +{}={}", name, round_meters(value * unit.factor))
+                        .map_err(Error::from)
+                });
+            }
+            UnitType::Angular if !is_degree(unit) => {
+                return parse_number(p.value).and_then(|value| {
+                    write!(
+                        w,
+                        " +{}={}",
+                        name,
+                        round_degrees((value * unit.factor).to_degrees())
+                    )
+                    .map_err(Error::from)
+                });
+            }
+            _ => (),
+        }
+    }
+    write!(w, " +{}={}", name, p.value).map_err(Error::from)
 }
 
 // Values computed from unit conversions are rounded to remove

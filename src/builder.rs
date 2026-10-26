@@ -31,6 +31,7 @@ pub enum Node<'a> {
     TOWGS84(Vec<&'a str>),
     AXIS(Axis<'a>),
     CS(&'a str),
+    EXTENSION(&'a str, &'a str),
     OTHER(&'a str),
 }
 
@@ -74,6 +75,7 @@ impl<'a> Processor<'a> for Builder {
             "DATUM" | "GEODETICDATUM" | "TRF" => self.datum(attrs).map(Node::DATUM),
             "ENSEMBLE" => self.ensemble(key, attrs),
             "CS" => self.cs(attrs).map(Node::CS),
+            "EXTENSION" => self.extension(attrs),
             "PRIMEM" | "PRIMEMERIDIAN" => self.primem(attrs).map(Node::PRIMEM),
             "UNIT" | "ANGLEUNIT" | "SCALEUNIT" | "LENGTHUNIT" => {
                 self.unit(key, attrs).map(Node::UNIT)
@@ -103,6 +105,7 @@ impl Builder {
         let mut unit = None;
         let mut axis_unit = None;
         let mut axis_directions = vec![];
+        let mut proj4_extension = None;
         let mut authority = None;
 
         let mut parameters: Vec<Parameter<'a>> = vec![];
@@ -118,6 +121,9 @@ impl Builder {
                     Node::UNIT(u) => unit = Some(u),
                     Node::METHOD(m) => method = Some(m),
                     Node::PARAMETER(p) => parameters.push(p),
+                    Node::EXTENSION(name, value) if name.eq_ignore_ascii_case("PROJ4") => {
+                        proj4_extension = Some(value)
+                    }
                     Node::AXIS(axis) => {
                         axis_directions.push(axis.direction);
                         // WKT2: keep the first axis unit
@@ -168,6 +174,7 @@ impl Builder {
             projection: projection.ok_or(Error::Wkt("Missing PROJCS projection".into()))?,
             unit,
             axis_directions,
+            proj4_extension,
         })
     }
 
@@ -400,6 +407,27 @@ impl Builder {
             }),
             None => Node::OTHER(key),
         })
+    }
+
+    fn extension<'a>(
+        &self,
+        attrs: impl Iterator<Item = Attribute<'a, Node<'a>>>,
+    ) -> Result<Node<'a>> {
+        let mut name = None;
+        let mut value = None;
+
+        for (i, a) in attrs.enumerate() {
+            match a {
+                Attribute::Quoted(s) if i == 0 => name = Some(s),
+                Attribute::Quoted(s) if i == 1 => value = Some(s),
+                _ => (),
+            }
+        }
+
+        Ok(Node::EXTENSION(
+            name.ok_or(Error::Wkt("Missing EXTENSION name".into()))?,
+            value.ok_or(Error::Wkt("Missing EXTENSION value".into()))?,
+        ))
     }
 
     fn cs<'a>(&self, attrs: impl Iterator<Item = Attribute<'a, Node<'a>>>) -> Result<&'a str> {

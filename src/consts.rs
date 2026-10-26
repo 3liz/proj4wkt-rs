@@ -51,6 +51,9 @@ pub mod parameters {
     define!(ELLIPSOIDAL_HEIGHT_TOPOCENTRIC_ORIGIN, "Ellipsoidal height of topocentric origin", "8836");
     define!(VIEWPOINT_HEIGHT,                      "Viewpoint height",                  "8840");
 
+    // PROJ WKT2 names, no EPSG definition
+    define!(SATELLITE_HEIGHT,                      "Satellite Height",                  "");
+
     // No EPSG definition
     define!(LAT_FIRST_POINT,   "Latitude of 1st point" , "");
     define!(LONG_FIRST_POINT,  "Longitude of 1st point", "");
@@ -72,8 +75,15 @@ pub mod methods {
 
     define!(POPULAR_VISUALISATION_PSEUDO_MERCATOR,  "Popular Visualisation Pseudo Mercator",    "1024");
     define!(LAMBERT_AZIMUTHAL_EQUAL_AREA_SPHERICAL, "Lambert Azimuthal Equal Area (Spherical)", "1027");
+    define!(EQUIDISTANT_CYLINDRICAL,                "Equidistant Cylindrical",                  "1028");
+    define!(EQUIDISTANT_CYLINDRICAL_SPHERICAL,      "Equidistant Cylindrical (Spherical)",      "1029");
     define!(EPSG_METHOD_KROVAK_NORTH_ORIENTED,      "Krovak (North Orientated)",                "1041");
     define!(LAMBERT_CONIC_CONFORMAL_2SP_MICHIGAN,   "Lambert Conic Conformal (2SP Michigan)",   "1051");
+    define!(EQUAL_EARTH,                            "Equal Earth",                              "1078");
+    define!(LAMBERT_CONIC_CONFORMAL_1SP_VARIANT_B,  "Lambert Conic Conformal (1SP variant B)",  "1102");
+    define!(TRANSVERSE_MERCATOR_3D,                 "Transverse Mercator 3D",                   "1111");
+    define!(EQUIDISTANT_CONIC,                      "Equidistant Conic",                        "1119");
+    define!(AZIMUTHAL_EQUIDISTANT,                  "Azimuthal Equidistant",                    "1125");
 
     define!(LAMBERT_CONIC_CONFORMAL_1SP,            "Lambert Conic Conformal (1SP)",            "9801");
     define!(LAMBERT_CONIC_CONFORMAL_2SP,            "Lambert Conic Conformal (2SP)",            "9802");
@@ -81,13 +91,25 @@ pub mod methods {
     define!(MERCATOR_VARIANT_A,                     "Mercator (variant A)",                     "9804");
     define!(MERCATOR_VARIANT_B,                     "Mercator (variant B)",                     "9805");
     define!(TRANSVERSE_MERCATOR,                    "Transverse Mercator"                   ,   "9807");
+    define!(CASSINI_SOLDNER,                        "Cassini-Soldner",                          "9806");
     define!(TRANSVERSE_MERCATOR_SOUTH_ORIENTATED,   "Transverse Mercator (South Orientated)",   "9808");
+    define!(HOTINE_OBLIQUE_MERCATOR_VARIANT_A,      "Hotine Oblique Mercator (variant A)",      "9812");
+    define!(SWISS_OBLIQUE_CYLINDRICAL,              "Swiss Oblique Cylindrical",                "9814");
+    define!(HOTINE_OBLIQUE_MERCATOR_VARIANT_B,      "Hotine Oblique Mercator (variant B)",      "9815");
+    define!(AMERICAN_POLYCONIC,                     "American Polyconic",                       "9818");
     define!(KROVAK,                                 "Krovak",                                   "9819");
     define!(OBLIQUE_STEREOGRAPHIC,                  "Oblique Stereographic",                    "9809");
     define!(POLAR_STEREOGRAPHIC_VARIANT_A,          "Polar Stereographic (variant A)",          "9810");
     define!(ALBERS_EQUAL_AREA,                      "Albers Equal Area",                        "9822");
     define!(LAMBERT_AZIMUTHAL_EQUAL_AREA,           "Lambert Azimuthal Equal Area",             "9820");
     define!(POLAR_STEREOGRAPHIC_VARIANT_B,          "Polar Stereographic (variant B)",          "9829");
+    define!(GUAM_PROJECTION,                        "Guam Projection",                          "9831");
+    define!(MODIFIED_AZIMUTHAL_EQUIDISTANT,         "Modified Azimuthal Equidistant",           "9832");
+    define!(HYPERBOLIC_CASSINI_SOLDNER,             "Hyperbolic Cassini-Soldner",               "9833");
+    define!(LAMBERT_CYLINDRICAL_EQUAL_AREA_SPHERICAL, "Lambert Cylindrical Equal Area (Spherical)", "9834");
+    define!(LAMBERT_CYLINDRICAL_EQUAL_AREA,         "Lambert Cylindrical Equal Area",           "9835");
+    define!(VERTICAL_PERSPECTIVE,                   "Vertical Perspective",                     "9838");
+    define!(ORTHOGRAPHIC,                           "Orthographic",                             "9840");
 
     define!(PROJ_WKT2_NAME_MOLLWEIDE,            "Mollweide",     "");
     define!(PROJ_WKT2_NAME_WAGNER_IV,            "Wagner IV",     "");
@@ -95,4 +117,15 @@ pub mod methods {
     define!(PROJ_WKT2_NAME_METHOD_STEREOGRAPHIC, "Stereographic", "");
     define!(PROJ_WKT2_NAME_METHOD_ROBINSON,      "Robinson",      "");
     define!(PROJ_WKT2_NAME_METHOD_SINUSOIDAL,    "Sinusoidal",    "");
+    define!(PROJ_WKT2_NAME_METHOD_MILLER_CYLINDRICAL, "Miller Cylindrical", "");
+    define!(PROJ_WKT2_NAME_METHOD_GNOMONIC,      "Gnomonic",      "");
+    define!(PROJ_WKT2_NAME_METHOD_ORTHOGRAPHIC_SPHERICAL, "Orthographic (Spherical)", "");
+    define!(PROJ_WKT2_NAME_METHOD_HOTINE_OBLIQUE_MERCATOR_TWO_POINT_NATURAL_ORIGIN,
+        "Hotine Oblique Mercator Two Point Natural Origin", "");
+    define!(PROJ_WKT2_NAME_METHOD_GEOSTATIONARY_SATELLITE_SWEEP_X, "Geostationary Satellite (Sweep X)", "");
+    define!(PROJ_WKT2_NAME_METHOD_GEOSTATIONARY_SATELLITE_SWEEP_Y, "Geostationary Satellite (Sweep Y)", "");
+
+    // ESRI WKT1 only methods
+    define!(ESRI_BEHRMANN,     "Behrmann",     "");
+    define!(ESRI_LOCAL,        "Local",        "");
 }
