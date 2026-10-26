@@ -58,6 +58,7 @@ impl<T: Write> Formatter<T> {
     pub fn format(&mut self, node: &Node) -> Result<()> {
         match node {
             Node::GEOGCRS(cs) => self.add_geogcs(cs),
+            Node::GEOCCRS(cs) => self.add_geoccs(cs),
             Node::PROJCRS(cs) => self.add_projcs(cs),
             Node::COMPOUNDCRS(crs) => match &crs.h_crs {
                 Horizontalcrs::Projcs(cs) => self.add_projcs(cs),
@@ -86,7 +87,12 @@ impl<T: Write> Formatter<T> {
         if let Some(pm) = &geogcs.prime_meridian {
             let lon = parse_number(pm.longitude)?;
             if lon != 0.0 {
-                let lon = match pm.unit.as_ref().or(geogcs.unit.as_ref()) {
+                // Geocentric crs unit is linear: default to degree
+                let crs_unit = geogcs
+                    .unit
+                    .as_ref()
+                    .filter(|unit| unit.unit_type == UnitType::Angular);
+                let lon = match pm.unit.as_ref().or(crs_unit) {
                     // GDAL WKT1 always writes the Paris meridian in degrees,
                     // even with a grad geodetic crs unit (as corrected by PROJ)
                     _ if pm.name.eq_ignore_ascii_case("Paris")
@@ -103,6 +109,13 @@ impl<T: Write> Formatter<T> {
             }
         }
         Ok(())
+    }
+
+    fn add_geoccs(&mut self, geoccs: &Geogcs) -> Result<()> {
+        self.write_str("+proj=geocent")?;
+        self.add_units(geoccs.unit.as_ref())?;
+        self.add_datum(&geoccs.datum, false)?;
+        self.add_prime_meridian(geoccs)
     }
 
     fn add_datum(&mut self, datum: &Datum, spherical: bool) -> Result<()> {

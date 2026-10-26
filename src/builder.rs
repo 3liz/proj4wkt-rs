@@ -24,6 +24,8 @@ pub enum Node<'a> {
     PRIMEM(PrimeMeridian<'a>),
     PROJCRS(Projcs<'a>),
     GEOGCRS(Geogcs<'a>),
+    // Geodetic crs with a cartesian coordinate system
+    GEOCCRS(Geogcs<'a>),
     PROJECTION(Projection<'a>),
     ELLIPSOID(Ellipsoid<'a>),
     COMPOUNDCRS(Compoundcrs<'a>),
@@ -67,7 +69,8 @@ impl<'a> Processor<'a> for Builder {
             "AUTHORITY" | "ID" => self.authority(attrs).map(Node::AUTHORITY),
             "PROJCS" | "PROJCRS" | "PROJECTEDCRS" => self.projcs(attrs).map(Node::PROJCRS),
             "GEOGCS" | "GEOGCRS" | "GEOGRAPHICCRS" | "GEODCRS" | "GEODETICCRS" | "BASEGEODCRS"
-            | "BASEGEOGCRS" => self.geogcs(attrs).map(Node::GEOGCRS),
+            | "BASEGEOGCRS" => self.geodetic_crs(false, attrs),
+            "GEOCCS" => self.geodetic_crs(true, attrs),
             "ELLIPSOID" | "SPHEROID" => self.ellipsoid(attrs).map(Node::ELLIPSOID),
             "CONVERSION" => self.projection(attrs).map(Node::PROJECTION),
             "PROJECTION" | "METHOD" => self.method(attrs).map(Node::METHOD),
@@ -260,15 +263,19 @@ impl Builder {
         })
     }
 
-    fn geogcs<'a>(
+    // Geographic crs, or geocentric crs for WKT1 GEOCCS and
+    // WKT2 geodetic crs with a cartesian coordinate system
+    fn geodetic_crs<'a>(
         &self,
+        geocentric: bool,
         attrs: impl Iterator<Item = Attribute<'a, Node<'a>>>,
-    ) -> Result<Geogcs<'a>> {
+    ) -> Result<Node<'a>> {
         let mut name = None;
         let mut datum = None;
         let mut prime_meridian = None;
         let mut unit = None;
         let mut axis_unit = None;
+        let mut linear_axis_unit = None;
         let mut authority = None;
         let mut cs_type = None;
 
@@ -282,11 +289,14 @@ impl Builder {
                     Node::UNIT(u) => unit = Some(u),
                     Node::AUTHORITY(a) => authority = Some(a),
                     // WKT2: keep the first axis angular unit,
-                    // skip the ellipsoidal height unit of 3D crs
-                    Node::AXIS(Axis { unit: Some(u), .. })
-                        if axis_unit.is_none() && u.unit_type != UnitType::Linear =>
-                    {
-                        axis_unit = Some(u)
+                    // skip the ellipsoidal height unit of 3D crs,
+                    // and the first linear unit for geocentric crs
+                    Node::AXIS(Axis { unit: Some(u), .. }) => {
+                        if u.unit_type == UnitType::Linear {
+                            linear_axis_unit.get_or_insert(u);
+                        } else {
+                            axis_unit.get_or_insert(u);
+                        }
                     }
                     _ => (),
                 },
@@ -295,21 +305,31 @@ impl Builder {
         }
 
         // WKT2: GEODCRS may be a geocentric crs
-        if cs_type.is_some_and(|cs| cs.eq_ignore_ascii_case("Cartesian")) {
-            return Err(Error::Wkt("Geocentric crs is not supported".into()));
-        }
+        let geocentric =
+            geocentric || cs_type.is_some_and(|cs| cs.eq_ignore_ascii_case("Cartesian"));
 
         // WKT2: a unit common to all axes follows the AXIS list,
         // otherwise the unit is defined on each axis
         if unit.is_none() {
-            unit = axis_unit;
+            unit = if geocentric {
+                linear_axis_unit
+            } else {
+                axis_unit
+            };
         }
 
         if let Some(u) = unit.as_mut() {
-            match u.unit_type {
-                // Geogcs unit should be angular
-                UnitType::Unknown => u.unit_type = UnitType::Angular,
-                UnitType::Linear => {
+            match (geocentric, &u.unit_type) {
+                // Geocentric crs unit should be linear
+                (true, UnitType::Unknown) => u.unit_type = UnitType::Linear,
+                (true, UnitType::Angular) => {
+                    return Err(Error::Wkt(
+                        "Expecting linear unit for geocentric crs".into(),
+                    ));
+                }
+                // Geographic crs unit should be angular
+                (false, UnitType::Unknown) => u.unit_type = UnitType::Angular,
+                (false, UnitType::Linear) => {
                     // Hu ?
                     return Err(Error::Wkt("Expecting angular unit for geodetic crs".into()));
                 }
@@ -317,12 +337,17 @@ impl Builder {
             }
         }
 
-        Ok(Geogcs {
+        let crs = Geogcs {
             name: name.unwrap_or(""),
             datum: datum.ok_or(Error::Wkt("Missing DATUM for geodetic crs".into()))?,
             prime_meridian,
             unit,
             authority,
+        };
+        Ok(if geocentric {
+            Node::GEOCCRS(crs)
+        } else {
+            Node::GEOGCRS(crs)
         })
     }
 

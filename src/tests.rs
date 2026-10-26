@@ -763,8 +763,11 @@ fn convert_wkt2_geodetic_crs() {
         format!("+proj=longlat{WGS84}"),
     );
 
-    // Geocentric crs is not supported
-    assert!(crate::wkt_to_projstring(fixtures::WKT2_2019_GEODCRS_GEOCENTRIC).is_err());
+    // Geodetic crs with a cartesian coordinate system is geocentric
+    assert_eq!(
+        crate::wkt_to_projstring(fixtures::WKT2_2019_GEODCRS_GEOCENTRIC).unwrap(),
+        format!("+proj=geocent +units=m{WGS84}"),
+    );
 }
 
 #[test]
@@ -1335,8 +1338,11 @@ fn report_wkt_errors() {
             "Wrong number of parameters for TOWGS84",
         ),
         (
-            fixtures::WKT2_2019_GEODCRS_GEOCENTRIC,
-            "Geocentric crs is not supported",
+            concat!(
+                r#"GEOCCS["x",DATUM["d",SPHEROID["s",6378137,298.257223563]],"#,
+                r#"ANGLEUNIT["degree",0.0174532925199433]]"#,
+            ),
+            "Expecting linear unit for geocentric crs",
         ),
         (
             concat!(
@@ -1506,6 +1512,36 @@ fn convert_proj4rs_projections() {
         (
             r#"PROJCS["unknown",GEOGCS["GCS_unknown",DATUM["D_Unknown_based_on_GRS_1980_ellipsoid",SPHEROID["GRS_1980",6378137.0,298.257222101]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433]],PROJECTION["Hotine_Oblique_Mercator_Two_Point_Natural_Origin"],PARAMETER["False_Easting",1000.0],PARAMETER["False_Northing",2000.0],PARAMETER["Latitude_Of_1st_Point",40.0],PARAMETER["Latitude_Of_2nd_Point",50.0],PARAMETER["Scale_Factor",0.9996],PARAMETER["Longitude_Of_1st_Point",-100.0],PARAMETER["Longitude_Of_2nd_Point",-80.0],PARAMETER["Latitude_Of_Center",45.0],UNIT["Meter",1.0]]"#,
             "+proj=omerc +x_0=1000.0 +y_0=2000.0 +lat_1=40.0 +lat_2=50.0 +k=0.9996 +lon_1=-100.0 +lon_2=-80.0 +lat_0=45.0 +units=m +a=6378137.0 +rf=298.257222101 +towgs84=0,0,0,0,0,0,0",
+        ),
+    ] {
+        assert_eq!(crate::wkt_to_projstring(wkt).unwrap(), projstr, "{wkt}");
+    }
+}
+
+#[test]
+fn convert_geocentric_crs() {
+    setup();
+    for (wkt, projstr) in [
+        // WKT1 GEOCCS (EPSG:4978, projinfo, PROJ 9.4.0)
+        (
+            r#"GEOCCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Geocentric X",OTHER],AXIS["Geocentric Y",OTHER],AXIS["Geocentric Z",NORTH],AUTHORITY["EPSG","4978"]]"#,
+            "+proj=geocent +units=m +a=6378137 +rf=298.257223563 +towgs84=0,0,0,0,0,0,0",
+        ),
+        // WKT1 GEOCCS, prime meridian and TOWGS84
+        (
+            r#"GEOCCS["NTF geocentric",DATUM["Nouvelle_Triangulation_Francaise",SPHEROID["Clarke 1880 (IGN)",6378249.2,293.4660212936269],TOWGS84[-168,-60,320,0,0,0,0]],PRIMEM["Paris",2.33722917],UNIT["metre",1],AXIS["Geocentric X",OTHER],AXIS["Geocentric Y",OTHER],AXIS["Geocentric Z",NORTH]]"#,
+            "+proj=geocent +units=m +a=6378249.2 +rf=293.4660212936269 +towgs84=-168,-60,320,0,0,0,0 +pm=2.33722917",
+        ),
+        // WKT2 geodetic crs with a cartesian coordinate system in feet:
+        // prime meridian in its own unit
+        (
+            r#"GEODCRS["test",DATUM["Nouvelle Triangulation Francaise",ELLIPSOID["Clarke 1880 (IGN)",6378249.2,293.466021293627,LENGTHUNIT["metre",1]]],PRIMEM["Paris",2.5969213,ANGLEUNIT["grad",0.0157079632679489]],CS[Cartesian,3],AXIS["(X)",geocentricX,ORDER[1],LENGTHUNIT["foot",0.3048]],AXIS["(Y)",geocentricY,ORDER[2],LENGTHUNIT["foot",0.3048]],AXIS["(Z)",geocentricZ,ORDER[3],LENGTHUNIT["foot",0.3048]]]"#,
+            "+proj=geocent +to_meter=0.3048 +a=6378249.2 +rf=293.466021293627 +pm=2.33722917",
+        ),
+        // WKT1 GEOCCS unit is linear: prime meridian in degrees
+        (
+            r#"GEOCCS["Ferro geocentric",DATUM["MGI_Ferro",SPHEROID["Bessel 1841",6377397.155,299.1528128]],PRIMEM["Ferro",-17.6666666666667],UNIT["metre",1]]"#,
+            "+proj=geocent +units=m +a=6377397.155 +rf=299.1528128 +pm=-17.6666666666667",
         ),
     ] {
         assert_eq!(crate::wkt_to_projstring(wkt).unwrap(), projstr, "{wkt}");
