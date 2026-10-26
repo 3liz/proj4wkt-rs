@@ -213,6 +213,11 @@ fn build_nad83() {
                     },
                     to_wgs84: vec![],
                 },
+                prime_meridian: Some(PrimeMeridian {
+                    name: "Greenwich",
+                    longitude: "0",
+                    unit: None,
+                }),
                 unit: Some(Unit {
                     name: "degree",
                     factor: 0.01745329251994328,
@@ -524,5 +529,57 @@ fn convert_polar_stereographic() {
     assert_eq!(
         crate::wkt_to_projstring(wkt).unwrap(),
         format!("+proj=stere +lat_0=-90 +lat_ts=-71 +lon_0=0 +x_0=0 +y_0=0 +units=m{ELLPS}"),
+    );
+}
+
+#[test]
+fn convert_prime_meridian() {
+    setup();
+    const ELLPS: &str = " +a=6378249.2 +rf=293.4660212936269 +towgs84=-168,-60,320,0,0,0,0";
+    let geogcs = |primem: &str, unit: &str| {
+        format!(
+            concat!(
+                r#"GEOGCS["NTF (Paris)",DATUM["Nouvelle_Triangulation_Francaise_Paris","#,
+                r#"SPHEROID["Clarke 1880 (IGN)",6378249.2,293.4660212936269],"#,
+                r#"TOWGS84[-168,-60,320,0,0,0,0]],{},{}]"#,
+            ),
+            primem, unit
+        )
+    };
+    let grad = r#"UNIT["grad",0.01570796326794897]"#;
+    let degree = r#"UNIT["degree",0.0174532925199433]"#;
+
+    for (wkt, pm) in [
+        // WKT1: longitude in the GEOGCS unit
+        (
+            geogcs(r#"PRIMEM["Paris",2.5969213]"#, grad),
+            "2.3372291700000005",
+        ),
+        // GDAL WKT1: Paris longitude in degrees with GEOGCS unit in grads
+        (geogcs(r#"PRIMEM["Paris",2.33722917]"#, grad), "2.33722917"),
+        (
+            geogcs(r#"PRIMEM["Paris",2.33722917]"#, degree),
+            "2.33722917",
+        ),
+        // WKT2: longitude in its own unit
+        (
+            geogcs(
+                r#"PRIMEM["Ferro",-17.6666666666667,ANGLEUNIT["degree",0.0174532925199433]]"#,
+                grad,
+            ),
+            "-17.6666666666667",
+        ),
+    ] {
+        assert_eq!(
+            crate::wkt_to_projstring(&wkt).unwrap(),
+            format!("+proj=longlat{ELLPS} +pm={pm}"),
+            "{wkt}"
+        );
+    }
+
+    // Greenwich is not written
+    assert_eq!(
+        crate::wkt_to_projstring(&geogcs(r#"PRIMEM["Greenwich",0]"#, degree)).unwrap(),
+        format!("+proj=longlat{ELLPS}"),
     );
 }

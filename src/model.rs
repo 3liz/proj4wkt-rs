@@ -5,8 +5,16 @@
 pub struct Geogcs<'a> {
     pub name: &'a str,
     pub datum: Datum<'a>,
+    pub prime_meridian: Option<PrimeMeridian<'a>>,
     pub unit: Option<Unit<'a>>,
     pub authority: Option<Authority<'a>>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct PrimeMeridian<'a> {
+    pub name: &'a str,
+    pub longitude: &'a str,
+    pub unit: Option<Unit<'a>>,
 }
 
 #[derive(Debug, PartialEq)]

@@ -21,6 +21,7 @@ pub enum Node<'a> {
     METHOD(Method<'a>),
     PARAMETER(Parameter<'a>),
     DATUM(Datum<'a>),
+    PRIMEM(PrimeMeridian<'a>),
     PROJCRS(Projcs<'a>),
     GEOGCRS(Geogcs<'a>),
     PROJECTION(Projection<'a>),
@@ -71,6 +72,7 @@ impl<'a> Processor<'a> for Builder {
             "PROJECTION" | "METHOD" => self.method(attrs).map(Node::METHOD),
             "PARAMETER" => self.parameter(attrs).map(Node::PARAMETER),
             "DATUM" | "GEODETICDATUM" | "TRF" => self.datum(attrs).map(Node::DATUM),
+            "PRIMEM" | "PRIMEMERIDIAN" => self.primem(attrs).map(Node::PRIMEM),
             "UNIT" | "ANGLEUNIT" | "SCALEUNIT" | "LENGTHUNIT" => {
                 self.unit(key, attrs).map(Node::UNIT)
             }
@@ -250,6 +252,7 @@ impl Builder {
     ) -> Result<Geogcs<'a>> {
         let mut name = None;
         let mut datum = None;
+        let mut prime_meridian = None;
         let mut unit = None;
         let mut axis_unit = None;
         let mut authority = None;
@@ -259,6 +262,7 @@ impl Builder {
                 Attribute::Quoted(s) if i == 0 => name = Some(s),
                 Attribute::Keyword(_, n) => match n {
                     Node::DATUM(d) => datum = Some(d),
+                    Node::PRIMEM(pm) => prime_meridian = Some(pm),
                     Node::UNIT(u) => unit = Some(u),
                     Node::AUTHORITY(a) => authority = Some(a),
                     // WKT2: keep the first axis angular unit,
@@ -295,8 +299,40 @@ impl Builder {
         Ok(Geogcs {
             name: name.unwrap_or(""),
             datum: datum.ok_or(Error::Wkt("Missing DATUM for geodetic crs".into()))?,
+            prime_meridian,
             unit,
             authority,
+        })
+    }
+
+    fn primem<'a>(
+        &self,
+        attrs: impl Iterator<Item = Attribute<'a, Node<'a>>>,
+    ) -> Result<PrimeMeridian<'a>> {
+        let mut name = None;
+        let mut longitude = None;
+        let mut unit = None;
+
+        for (i, a) in attrs.enumerate() {
+            match a {
+                Attribute::Quoted(s) if i == 0 => name = Some(s),
+                Attribute::Number(s) if i == 1 => longitude = Some(s),
+                Attribute::Keyword(_, Node::UNIT(u)) => unit = Some(u),
+                _ => (),
+            }
+        }
+
+        if let Some(u) = unit.as_mut() {
+            // Prime meridian unit should be angular
+            if u.unit_type == UnitType::Unknown {
+                u.unit_type = UnitType::Angular;
+            }
+        }
+
+        Ok(PrimeMeridian {
+            name: name.ok_or(Error::Wkt("Missing PRIMEM name".into()))?,
+            longitude: longitude.ok_or(Error::Wkt("Missing PRIMEM longitude".into()))?,
+            unit,
         })
     }
 

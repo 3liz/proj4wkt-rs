@@ -75,7 +75,33 @@ impl<T: Write> Formatter<T> {
 
     fn add_geogcs(&mut self, geogcs: &Geogcs) -> Result<()> {
         self.write_str("+proj=longlat")?;
-        self.add_datum(&geogcs.datum)
+        self.add_datum(&geogcs.datum)?;
+        self.add_prime_meridian(geogcs)
+    }
+
+    // Prime meridian longitude is in its own unit (WKT2),
+    // otherwise in the geodetic crs unit (WKT1)
+    fn add_prime_meridian(&mut self, geogcs: &Geogcs) -> Result<()> {
+        if let Some(pm) = &geogcs.prime_meridian {
+            let lon = parse_number(pm.longitude)?;
+            if lon != 0.0 {
+                let lon = match pm.unit.as_ref().or(geogcs.unit.as_ref()) {
+                    // GDAL WKT1 always writes the Paris meridian in degrees,
+                    // even with a grad geodetic crs unit (as corrected by PROJ)
+                    _ if pm.name.eq_ignore_ascii_case("Paris")
+                        && (lon - 2.33722917).abs() < 1.0e-8 =>
+                    {
+                        lon
+                    }
+                    Some(unit) if !unit.name.eq_ignore_ascii_case("degree") => {
+                        (lon * unit.factor).to_degrees()
+                    }
+                    _ => lon,
+                };
+                write!(self.w, " +pm={lon}")?;
+            }
+        }
+        Ok(())
     }
 
     fn add_datum(&mut self, datum: &Datum) -> Result<()> {
@@ -140,6 +166,7 @@ impl<T: Write> Formatter<T> {
 
             self.add_parameters(&projcs.projection.parameters, mapping, axis_unit, geod_unit)?;
             self.add_datum(&projcs.geogcs.datum)?;
+            self.add_prime_meridian(&projcs.geogcs)?;
 
             let proj_aux = mapping.proj_aux();
             if !proj_aux.is_empty() {
